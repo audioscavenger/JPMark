@@ -7,7 +7,6 @@ pushd %~dp0
 :: - exiftool https://exiftool.org/                                     ExifTool by Phil Harvey
 ::
 :: * TODO:
-:: - add EXIF+IPCT copyright information: © 2019, Jane Doe. All/Some rights reserved.
 :: - use Exif template for copyright: https://blog.laurencebichon.com/en/metadata-copyright-example-for-a-freelance-photographer/
 ::
 :: the sample image is 6048x4024 JPEG, quality: 91, subsampling ON (2x1)
@@ -21,7 +20,7 @@ pushd %~dp0
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.1.0
+set version=1.2.0
 
 :: codepage 65001 is pretty much UTF8
 chcp 65001 >NUL
@@ -40,7 +39,7 @@ set vsample=8
 ::::::::::::::::::::::::::::::::::::::::::::: customize your own values here :::::::::::::::::::::::::::::::::::::::::::::
 :custom
 :: it is critical that you provide here the path to jpegtran and imagick here
-set "PATH=%PATH%;E:\PortableApps\Magick;E:\wintools\multimedia\jpegtran;E:\wintools\multimedia\exiv2-0.27.4-2019msvc64"
+set "PATH=%PATH%;E:\PortableApps\Magick;E:\wintools\multimedia\jpegtran;E:\wintools\multimedia\exiv2-0.27.4-2019msvc64\bin"
 set text=©^&ric photography
 set font=Romantica-RpXpW.ttf
 :: watermark width and height as a percentage of your pictures
@@ -50,6 +49,7 @@ set wheightPct=9
 set textScale=80
 :: output filename, cannot be the same as the original file
 set outputFile=%~dpn1-C%~x1
+set exifTags=copyright.ldo.txt
 ::::::::::::::::::::::::::::::::::::::::::::: customize your own values here :::::::::::::::::::::::::::::::::::::::::::::
 
 :prechecks
@@ -68,6 +68,7 @@ call :extractMagick %1 %extract%
 REM call :extractJpegtran %1 %extract%
 call :genWatermark %extract% %watermark%
 call :pasteWatermark %watermark% %1 %outputFile%
+call :addExfifTags %exifTags% %outputFile%
 
 goto :end
 
@@ -161,6 +162,11 @@ goto :EOF
 
 :pasteWatermark watermark input output
 jpegtran -copy all -drop +%WPOS% %1 -optimize %2 %3
+goto :EOF
+
+
+:addExfifTags tags output
+exiv2 -m %1 %2
 goto :EOF
 
 
