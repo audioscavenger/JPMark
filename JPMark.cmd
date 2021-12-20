@@ -4,6 +4,11 @@ pushd %~dp0
 :: * requisites:
 :: - jpegtran https://jpegclub.org/jpegtran/                            Jpeg lossless operations
 :: - iMagick  https://www.imagemagick.org/script/download.php#windows   Portable Win64 static at 16 bits-per-pixel component.
+:: - exiftool https://exiftool.org/                                     ExifTool by Phil Harvey
+::
+:: * TODO:
+:: - add EXIF+IPCT copyright information: © 2019, Jane Doe. All/Some rights reserved.
+:: - use Exif template for copyright: https://blog.laurencebichon.com/en/metadata-copyright-example-for-a-freelance-photographer/
 ::
 :: the sample image is 6048x4024 JPEG, quality: 91, subsampling ON (2x1)
 :: we want the watermark to be centered at roughly the bottom with:
@@ -16,7 +21,7 @@ pushd %~dp0
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.0.0
+set version=1.1.0
 
 :: codepage 65001 is pretty much UTF8
 chcp 65001 >NUL
@@ -35,7 +40,7 @@ set vsample=8
 ::::::::::::::::::::::::::::::::::::::::::::: customize your own values here :::::::::::::::::::::::::::::::::::::::::::::
 :custom
 :: it is critical that you provide here the path to jpegtran and imagick here
-set "PATH=%PATH%;E:\PortableApps\Magick;E:\wintools\multimedia\jpegtran"
+set "PATH=%PATH%;E:\PortableApps\Magick;E:\wintools\multimedia\jpegtran;E:\wintools\multimedia\exiv2-0.27.4-2019msvc64"
 set text=©^&ric photography
 set font=Romantica-RpXpW.ttf
 :: watermark width and height as a percentage of your pictures
@@ -150,12 +155,12 @@ REM DEBUG: set WPOS=2120+3584
 
 REM jpegtran -crop %newWidth%x%newHeight%+0+0 -optimize %1 %2
 REM jpegtran -crop %WSIZE%+%WPOS% DZ6_6045.JPG extract.jpg
-jpegtran -crop %WSIZE%+%WPOS% -optimize %1 %2
-
+jpegtran -copy all -crop %WSIZE%+%WPOS% -optimize %1 %2
+pause
 goto :EOF
 
 :pasteWatermark watermark input output
-jpegtran -drop +%WPOS% %1 -optimize %2 %3
+jpegtran -copy all -drop +%WPOS% %1 -optimize %2 %3
 goto :EOF
 
 
