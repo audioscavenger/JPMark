@@ -11,20 +11,34 @@ pushd %~dp0
 :init
 set "PATH=%PATH%;E:\PortableApps\Magick"
 set DEBUG=true
-set wwidthPct=40
-set wheightPct=8
+set Scale=100
+set extract=extract.png
+set watermark=watermark.png
+set alpha=0.3
+set fontColor=255,255,255
+
+:: Point_Size and wwidth really depends on the font type and the height of the watermark; play with textScale to see if it fits
+set textScale=80
+set text=^&ric photography
+set font=Romantica-RpXpW.ttf
+set wwidthPct=30
+set wheightPct=9
 
 :prechecks
 call :set_colors
-del /f /q output.png
+del /f /q %extract% %watermark%
 
 :main
 
 call :getSIZE %1
 call :getWSIZE
+call :calculatePoint_Size
 
-REM magick -define jpeg:size=%SIZE% -extract 2480x280+1740+3664  %1 output.png
-magick -define jpeg:size=%SIZE% -extract %WSIZE%+%WPOS%  %1 output.png
+REM magick -define jpeg:size=%SIZE% -extract 2480x280+1740+3664  %1 %extract%
+magick -define jpeg:size=%SIZE% -extract %WSIZE%+%WPOS%  %1 %extract%
+
+call :watermark %extract% %watermark%
+
 goto :end
 
 
@@ -60,6 +74,36 @@ for /f "tokens=1,2" %%a in ("%SIZE:x= %") DO (
 )
 call :logDEBUG SIZE=%SIZE%
 goto :EOF
+
+
+:calculatePoint_Size
+set /A Point_Size=wheight * textScale / 100
+
+:: https://www.imagemagick.org/Usage/resize/
+set resize=
+IF %Scale% NEQ 100 (
+  set "resize=-resize %Scale%%%"
+  set /A Point_Size=Point_Size * Scale / 100
+)
+
+goto :EOF
+
+:watermark input output
+
+magick convert %1 %OPTIONS% ^
+%resize% ^
+-gravity Center ^( -size %WSIZE% xc:none -font %font% -pointsize %Point_Size% -fill rgba(%fontColor%,%alpha%) -strokewidth 7 -annotate 0 "%text%" -blur 0x1 ^) ^
+-composite -font %font% -pointsize %Point_Size% -fill rgba(%fontColor%,1) -stroke none      -annotate 0 "%text%" ^
+%QUALITY% ^
+%2
+
+REM -gravity %gTOP% -size %SIZE% xc:none -font Impact -pointsize %scaledPoint_Size% -stroke rgba(0,0,0,1) -strokewidth 7 -annotate 0 "%annotateTOP%" -blur 0x1  ^
+REM -gravity Center -size %WSIZE% xc:none -font %font% -pointsize %Point_Size% -fill rgba(%fontColor%,%alpha%) -stroke none -annotate 0 "%text%" -blur 0x1 ^
+REM -composite -font %font% -pointsize %Point_Size% -fill rgba(%fontColor%,1) -stroke none      -annotate 0 "%text%" ^
+
+goto :EOF
+
+
 
 :logDEBUG
 IF DEFINED DEBUG echo %m%DEBUG: %*%END%
@@ -101,5 +145,6 @@ goto :EOF
 
 
 :end
-timeout /t 5
+%watermark%
+REM timeout /t 5
 
