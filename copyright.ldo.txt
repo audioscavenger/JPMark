@@ -46,7 +46,7 @@ set Iptc.Application2.BylineTitle                String     Photographer
 set Iptc.Application2.Credit                     String     Eric Photography
 set Xmp.dc.credit                                           Eric Photography
 
-set Iptc.Application2.Source                     String     Eric Derewonko
+set Iptc.Application2.Source                     String     https://www.derewonko.com
 set Iptc.Application2.CountryName                String     US
 
 set Iptc.Application2.ObjectName                 String     Christmas Grinch 2021 @FrenchAM
@@ -58,8 +58,8 @@ set Xmp.dc.rights                                lang=en-US © 2021, Eric Derewo
 
 set Xmp.dc.publisher                                        https://www.derewonko.com
 
-# set Xmp.dc.subject              LangAlt lang=de-DE Hallo, Welt
-# set Xmp.dc.description          LangAlt lang=de-DE Hallo, Welt
+set Xmp.dc.subject                       LangAlt lang=en-US Christmas Grinch 2021 @FrenchAM
+set Xmp.dc.description                   LangAlt lang=en-US Canon de noel
 
 
 # Exif.Image.Make                              Ascii      18  NIKON CORPORATION
@@ -81,11 +81,11 @@ set Xmp.dc.publisher                                        https://www.derewonk
 
 # ## Add an array of structures. First set a text property with just the 
 # ## array type. (Note: this is not the same as creating an XmpBag property.)
-# set Xmp.xmpBJ.JobRef  XmpText type=Bag
+set Xmp.xmpBJ.JobRef  XmpText type=Bag
 
 # ## Then set the array items. Each of them is a structure with two elements.
-# set Xmp.xmpBJ.JobRef[1]/stJob:name   XmpText   Birthday party
-# set Xmp.xmpBJ.JobRef[1]/stJob:role   XmpText   Photographer
+set Xmp.xmpBJ.JobRef[1]/stJob:name   XmpText   Christmas Grinch 2021 @FrenchAM
+set Xmp.xmpBJ.JobRef[1]/stJob:role   XmpText   Canon de noel
 
 # set Xmp.xmpBJ.JobRef[2]/stJob:name             Wedding ceremony
 # set Xmp.xmpBJ.JobRef[2]/stJob:role             Best man

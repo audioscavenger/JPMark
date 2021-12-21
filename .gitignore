@@ -1,3 +1,6 @@
+chunk*.jpg
+watermark*.jpg
+
 # ---> Windows
 # Windows thumbnail cache files
 Thumbs.db
