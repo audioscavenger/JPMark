@@ -1,5 +1,6 @@
-chunk*.jpg
-watermark*.jpg
+chunk*
+watermark*
+*-ldo*
 
 # ---> Windows
 # Windows thumbnail cache files

@@ -1,28 +1,28 @@
-set Exif.Image.Artist                                      "Eric Derewonko"
-set Iptc.Application2.Byline                     String     Eric Derewonko
-set Xmp.dc.creator                                          Eric Derewonko
+set Exif.Image.Artist                                      "Xyz Derewonko"
+set Iptc.Application2.Byline                     String     Artist Name
+set Xmp.dc.creator                                          Artist Name
 
 set Iptc.Application2.BylineTitle                String     Photographer
 
-set Iptc.Application2.Credit                     String     Eric Photography
-set Xmp.dc.credit                                           Eric Photography
+set Iptc.Application2.Credit                     String     Artist Brand Name
+set Xmp.dc.credit                                           Artist Brand Name
 
-set Iptc.Application2.Source                     String     https://www.derewonko.com
+set Iptc.Application2.Source                     String     https://www.yourwebsite.com
 set Iptc.Application2.CountryName                String     US
 
 # Iptc.Application2.ObjectName is pretty much the title of the picture
-# set Iptc.Application2.ObjectName                 String     title of the picture
-# set Xmp.dc.title                                 lang=en-US title of the picture
-# set Xmp.dc.description                   LangAlt lang=en-US description of the picture
+set Iptc.Application2.ObjectName                 String     title of the picture
+set Xmp.dc.title                                 lang=en-US title of the picture
+set Xmp.dc.description                   LangAlt lang=en-US description of the picture
 
-set Exif.Image.Copyright                                    Copyright 2021, Eric Derewonko. Some rights reserved.
-set Iptc.Application2.Copyright                  String     © 2021, Eric Derewonko. Some rights reserved.
-set Xmp.dc.rights                                lang=en-US © 2021, Eric Derewonko. Some rights reserved.
+set Exif.Image.Copyright                                    Copyright 2021, Artist Name. Some rights reserved.
+set Iptc.Application2.Copyright                  String     © 2021, Artist Name. Some rights reserved.
+set Xmp.dc.rights                                lang=en-US © 2021, Artist Name. Some rights reserved.
 
-set Xmp.dc.publisher                                        https://www.derewonko.com
+set Xmp.dc.publisher                                        https://www.yourwebsite.com
 
 # THESE ARE YOUR TAGS; All tags must be separated by comma + space
-set Xmp.dc.subject                               XmpBag     USA, AZ, Phoenix
+set Xmp.dc.subject                               XmpBag     USA, AZ, Phoenix, Place, People, Person
 
 # Sample Exiv2 command file https://exiv2.org/sample.html
 # -------------------------

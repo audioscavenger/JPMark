@@ -19,15 +19,20 @@
 :: - exiftool https://exiftool.org/                                     ExifTool by Phil Harvey
 ::
 :: * TODO:
-:: [] offer an easy way to place the watermark where user wants it
-:: [] use Exif template for copyright: https://blog.laurencebichon.com/en/metadata-copyright-example-for-a-freelance-photographer/
-:: [] add more examples for Exif/XMP?IPTC tags
-:: [] export all custom values in a separate file/script
-:: [] include a list of all fonts available with imagick
-:: [] add prechecks for all required binaries
-:: [] add option to overwrite original files
+:: * [ ] create and stack chunks with different values of alpha/color with a number on top and let user choose the best one
+:: * [ ] BUG: does not work for pictures smaler then 2048
+:: * [ ] find a way to shift from bottom that's not a fixed amount of pixels
+:: * [ ] offer an easy way to place the watermark where user wants it
+:: * [ ] use Exif template for copyright: https://blog.laurencebichon.com/en/metadata-copyright-example-for-a-freelance-photographer/
+:: * [ ] add more examples for Exif/XMP?IPTC tags
+:: * [ ] export all custom values in a separate file/script
+:: * [ ] include a list of all fonts available with imagick
+:: * [ ] add prechecks for all required binaries
+:: * [ ] add option to overwrite original files
 ::
 :: * revisions:
+:: - 1.3.2    added prompt for additional tags and alpha
+:: - 1.3.1    added prompt for tagFile
 :: - 1.3.0    added batch processing
 :: - 1.2.0    added exiv2 tags and copyright
 :: - 1.1.0    working release
@@ -43,13 +48,15 @@
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.3.0
+set version=1.3.2
+
+:: uncomment to enable DEBUG
+set DEBUG=true
+set chunk=%~dp0\chunk.%RANDOM%.png
+set watermark=%~dp0\watermark.%RANDOM%.jpg
 
 :: codepage 65001 is pretty much UTF8, so you can use whichever unicode characters in your watermark
 chcp 65001 >NUL
-set DEBUG=
-set chunk=%~dp0\chunk.%RANDOM%.png
-set watermark=%~dp0\watermark.%RANDOM%.jpg
 
 :defaults
 :: 99.99% of jpeg have a 8x8 block DCT with 2x1 sample factor, but this will be extracted from the original jpeg anyway
@@ -59,11 +66,21 @@ set vsample=8
 ::::::::::::::::::::::::::::::::::::::::::::: customize your own values here :::::::::::::::::::::::::::::::::::::::::::::
 :custom
 :: it is critical that you provide here the path to jpegtran and imagick here
-set "PATH=%PATH%;E:\PortableApps\Magick;E:\wintools\multimedia\jpegtran;E:\wintools\multimedia\exiv2-0.27.4-2019msvc64\bin"
+set "PATH=%PATH%;E:\wintools\PortableApps\Magick;E:\wintools\multimedia\jpegtran;E:\wintools\multimedia\exiv2-0.27.4-2019msvc64\bin"
 :: watermarkText is, well, your watermark! Put you name or whatever unicode characters you like
 set watermarkText=©^&ric photography
 :: copyrightTag is added in the output filename before the extension: filename[copyrightTag].jpg
 set copyrightTag=-ldo
+:: exitTags are all the copyright.*.txt that you will be prompted to choose from, when tagging your pictures; first one is the default
+set exitTags=ldo ChristmasGrinch example
+:: in exifTagsFile you store the Exif/XMP?IPTC tags to add
+set exifTagsFile=%~dp0\copyright.exitTag.txt
+:: prompt for adding tags manually; set to false or comment it out to disable addExfifTags
+set addExifTagsFile=true
+:: set this to false or comment it out to use the first file in the list exitTags, otherwise you will be prompted
+set promptForExifTagsFile=false
+:: set this to true to be prompted for additional tags to add manually
+set promptForAdditionalTags=true
 
 :: specify a true type font here
 set font=%~dp0\Romantica-RpXpW.ttf
@@ -79,22 +96,24 @@ set wGravity=Center
 :: Play with textScale to see if it fits; the example Romantica-RpXpW.ttf provided is a bit special tho
 set textScale=80
 
-:: in exifTags you store the Exif/XMP?IPTC tags to add
-set exifTags=%~dp0\copyright.ldo.txt
-:: set this to false or comment it to disable addExfifTags if you don't need to add any tags
-set AddExifTags=true
-
 :: Scale will rescale your output files
 set Scale=100
 :: alpha is transparency of the watermark font
 set alpha=0.2
+:: let you choose alpha manually; comment or set to false to disable
+set promptForAlpha=true
 :: RGB fontColor
 set fontColor=255,255,255
+
+:: interactive choice for color and alpha
 ::::::::::::::::::::::::::::::::::::::::::::: customize your own values here :::::::::::::::::::::::::::::::::::::::::::::
 
 :prechecks
 call :set_colors
-IF "%~1"=="" echo ERROR: %~n0 takes arguments: jpeg(s) to process 1>&2 & timeout /t 5 & exit /b 99
+IF "%~1"=="" echo %r%ERROR: %~n0 takes arguments: jpeg(s) to process%END% 1>&2 & timeout /t 5 & exit /b 99
+where magick >NUL 2>&1 || (echo %r%ERROR: magick.exe not found%END% 1>&2 & timeout /t 5 & exit /b 99)
+where jpegtran >NUL 2>&1 || (echo %r%ERROR: jpegtran.exe not found%END% 1>&2 & timeout /t 5 & exit /b 99)
+IF /I "%addExifTagsFile%"=="true" where exiv2 >NUL 2>&1 || (echo %r%ERROR: exiv2.exe not found%END% 1>&2 & timeout /t 5 & exit /b 99)
 
 del /f /q %chunk% %watermark% 2>NUL
 
@@ -102,6 +121,8 @@ del /f /q %chunk% %watermark% 2>NUL
 :::::::::::::::::::::::::::::::::::::::::::::
 :::::::::::::::::::::::::::::::::::::::::::::
 :main
+IF /I "%promptForAlpha%"=="true" set /P alpha=alpha? [%alpha%] 
+
 call :isFolder %* && for %%F in ("%~1\*.jpg") DO call :loop %%F
 call :isFolder %* || for %%F in (%*)          DO call :loop %%F
 goto :end
@@ -111,7 +132,7 @@ goto :end
 
 :loop
 :: do not reprocess already processed files...
-dir "%~dpn1%copyrightTag%%~x1" >NUL 2>&1 && goto :EOF
+IF NOT DEFINED DEBUG dir "%~dpn1%copyrightTag%%~x1" >NUL 2>&1 && goto :EOF
 :: do not reprocess previous outputs...
 dir "%~1" | findstr /I /C:"%copyrightTag%%~x1" >NUL 2>&1 && goto :EOF
 
@@ -129,7 +150,9 @@ call :extractMagick %1 %chunk%
 REM call :extractJpegtran %1 %chunk%
 call :genWatermark %chunk% %watermark%
 call :pasteWatermark %watermark% %1 %outputFile%
-call :addExfifTags %exifTags% %outputFile%
+
+call :addExfifTags %outputFile%
+call :addManualTags %outputFile%
 
 :: this will open the file and pause the batch until you close it
 IF DEFINED DEBUG %outputFile%
@@ -139,6 +162,8 @@ goto :EOF
 
 
 :getWSIZE
+IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
+
 set /A wwidth   = width * wwidthPct / 100
 set /A wheight  = height * wheightPct / 100
 call :logDEBUG WSIZE    =%wwidth%x%wheight%
@@ -162,6 +187,7 @@ goto :EOF
 
 
 :getJpegInfo
+IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 :: https://imagemagick.org/script/identify.php
 :: https://imagemagick.org/script/escape.php
 :: magick identify Filename[frame #] image-format widthxheight page-widthxpage-height+x-offset+y-offset colorspace user-time elapsed-time
@@ -182,6 +208,7 @@ goto :EOF
 
 
 :calculatePoint_Size
+IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 set /A Point_Size=wheight * textScale / 100
 
 :: https://www.imagemagick.org/Usage/resize/
@@ -194,11 +221,21 @@ IF %Scale% NEQ 100 (
 goto :EOF
 
 :extractMagick input output
+IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
+IF DEFINED DEBUG echo magick -define jpeg:size=%SIZE% -extract %WSIZE%+%WPOS% %1 %2
 magick -define jpeg:size=%SIZE% -extract %WSIZE%+%WPOS% %1 %2
 goto :EOF
 
 :genWatermark input output
+IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 set JPEG_OPTIONS=-sampling-factor %samplingFactor% -quality %Quality%
+
+IF DEFINED DEBUG echo magick convert %1 %OPTIONS% ^
+%resize% ^
+-gravity %wGravity% ^( -size %WSIZE% xc:none -font %font% -pointsize %Point_Size% -fill rgba(%fontColor%,%alpha%) -strokewidth 7 -annotate 0 "%watermarkText%" -blur 0x1 ^) ^
+-composite -font %font% -pointsize %Point_Size% -fill rgba(%fontColor%,1) -stroke none      -annotate 0 "%watermarkText%" ^
+%JPEG_OPTIONS% ^
+%2
 
 magick convert %1 %OPTIONS% ^
 %resize% ^
@@ -210,6 +247,7 @@ magick convert %1 %OPTIONS% ^
 goto :EOF
 
 :extractJpegtran input output
+IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 :: https://stackoverflow.com/questions/37560777/how-can-i-losslessly-crop-a-jpeg-in-r/37612027
 REM The -crop switch specifies the rectangular subarea WxH+X+Y, 
 REM and -optimize is an option for reducing file size without quality loss by optimizing the Huffman table. 
@@ -225,18 +263,52 @@ REM DEBUG: set WPOS=2120+3584
 
 REM jpegtran -crop %newWidth%x%newHeight%+0+0 -optimize %1 %2
 REM jpegtran -crop %WSIZE%+%WPOS% DZ6_6045.JPG %~dp0\chunk.jpg
+IF DEFINED DEBUG echo jpegtran -copy all -crop %WSIZE%+%WPOS% -optimize %1 %2
 jpegtran -copy all -crop %WSIZE%+%WPOS% -optimize %1 %2
 
 goto :EOF
 
 :pasteWatermark watermark input output
+IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
+IF DEFINED DEBUG echo jpegtran -copy all -drop +%WPOS% %1 -optimize %2 %3
 jpegtran -copy all -drop +%WPOS% %1 -optimize %2 %3
 goto :EOF
 
 
-:addExfifTags tags output
-IF NOT "%AddExifTags%"=="true" exit /b 0
-exiv2 -m %1 %2
+:addExfifTags output
+IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
+IF NOT "%addExifTagsFile%"=="true" exit /b 0
+
+for /f "tokens=1" %%a in ("%exitTags%") DO set exifTagDefault=%%a
+IF "%promptForExifTagsFile%"=="true" (
+  echo:
+  echo               %exitTags%
+  set /P exifTagDefault=exifTagFile? [%exifTagDefault%] 
+)
+
+:: now get the actual filename
+call set exifTagsFileToUse=%%exifTagsFile:exitTag=%exifTagDefault%%%
+
+IF EXIST %exifTagsFileToUse% (
+  IF DEFINED DEBUG echo exiv2 -m %exifTagsFileToUse% %1
+  exiv2 -m %exifTagsFileToUse% %1
+  IF DEFINED DEBUG exiv2 -pi %1
+)
+goto :EOF
+
+:addManualTags output
+IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
+IF NOT "%promptForAdditionalTags%"=="true" exit /b 0
+
+echo:
+echo       Enter tags separated by a comma:
+set /P tags=tags? 
+
+IF DEFINED tags (
+  IF DEFINED DEBUG echo exiv2 -M"set Xmp.dc.subject XmpBag %tags%" %1
+  exiv2 -M"set Xmp.dc.subject XmpBag %tags%" %1
+  IF DEFINED DEBUG exiv2 -px %1 | findstr subject
+)
 goto :EOF
 
 
@@ -284,6 +356,7 @@ goto :EOF
 
 
 :end
-del /f /q %chunk% %watermark% 2>NUL
-REM timeout /t 5
+IF NOT DEFINED DEBUG del /f /q %chunk% %watermark% 2>NUL
+IF DEFINED DEBUG timeout /t 5
+
 

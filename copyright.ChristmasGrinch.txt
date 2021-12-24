@@ -11,9 +11,8 @@ set Iptc.Application2.Source                     String     https://www.derewonk
 set Iptc.Application2.CountryName                String     US
 
 # Iptc.Application2.ObjectName is pretty much the title of the picture
-# set Iptc.Application2.ObjectName                 String     title of the picture
-# set Xmp.dc.title                                 lang=en-US title of the picture
-# set Xmp.dc.description                   LangAlt lang=en-US description of the picture
+set Iptc.Application2.ObjectName                 String     Christmas Grinch 2021 @FrenchAM
+set Xmp.dc.title                                 lang=en-US Christmas Grinch 2021 @FrenchAM
 
 set Exif.Image.Copyright                                    Copyright 2021, Eric Derewonko. Some rights reserved.
 set Iptc.Application2.Copyright                  String     © 2021, Eric Derewonko. Some rights reserved.
@@ -21,8 +20,9 @@ set Xmp.dc.rights                                lang=en-US © 2021, Eric Derewo
 
 set Xmp.dc.publisher                                        https://www.derewonko.com
 
-# THESE ARE YOUR TAGS; All tags must be separated by comma + space
-set Xmp.dc.subject                               XmpBag     USA, AZ, Phoenix
+# THESE ARE YOUR TAGS; All tage must be separated by comma + space
+set Xmp.dc.subject                       LangAlt lang=en-US Christmas, FrenchAM, Event, Christmas Grinch @FrenchAM
+set Xmp.dc.description                   LangAlt lang=en-US Canon de noel
 
 # Sample Exiv2 command file https://exiv2.org/sample.html
 # -------------------------
@@ -33,7 +33,6 @@ set Xmp.dc.subject                               XmpBag     USA, AZ, Phoenix
 # run from the command line directly, without a command file: 
 #
 # $ exiv2 -M"add Iptc.Application2.Credit String mee too!" file ...
-# $ exiv2 -M"set Xmp.dc.subject LangAlt lang=en-US USA, AZ, Phoenix" file ...
 #
 # Note the quotes. Multiple -m and -M options are allowed and can be combined.
 # 
@@ -63,3 +62,37 @@ set Xmp.dc.subject                               XmpBag     USA, AZ, Phoenix
 #
 
 # examples: https://blog.laurencebichon.com/en/metadata-copyright-example-for-a-freelance-photographer/
+
+
+# Exif.Image.Make                              Ascii      18  NIKON CORPORATION
+# Exif.Image.Model                             Ascii      10  NIKON Z 6
+# Exif.Image.Orientation                       Short       1  top, left
+# Exif.Image.XResolution                       Rational    1  300
+# Exif.Image.YResolution                       Rational    1  300
+# Exif.Image.ResolutionUnit                    Short       1  inch
+# Exif.Image.Software                          Ascii      13  Ver.03.31
+# Exif.Image.DateTime                          Ascii      20  2021:12:16 09:59:06
+# Exif.Image.Artist                            Ascii      37  Eric DeLaRewonko
+# Exif.Image.YCbCrPositioning                  Short       1  Co-sited
+# Exif.Image.Copyright                         Ascii      55  DeLaRewonko Photography
+# Exif.Image.ExifTag                           Long        1  352
+# Exif.Image.GPSTag                            Long        1  32272
+
+# ## An array item (unordered array).
+# set Xmp.dc.subject     "Palmtree"
+
+# ## Add an array of structures. First set a text property with just the 
+# ## array type. (Note: this is not the same as creating an XmpBag property.)
+set Xmp.xmpBJ.JobRef  XmpText type=Bag
+
+# ## Then set the array items. Each of them is a structure with two elements.
+set Xmp.xmpBJ.JobRef[1]/stJob:name   XmpText   Christmas Grinch 2021 @FrenchAM
+set Xmp.xmpBJ.JobRef[1]/stJob:role   XmpText   Canon de noel
+
+# set Xmp.xmpBJ.JobRef[2]/stJob:name             Wedding ceremony
+# set Xmp.xmpBJ.JobRef[2]/stJob:role             Best man
+
+
+## extract IPTC:
+## exiv2 -pi DZ6_6045-C.JPG
+
