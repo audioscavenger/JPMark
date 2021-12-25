@@ -19,8 +19,8 @@
 :: - exiftool https://exiftool.org/                                     ExifTool by Phil Harvey
 ::
 :: * TODO:
-:: * [ ] wwidthPct and wheightPct transposed for portrait, still based off 4:3 ratio
-:: * [ ] get wwxwh transposed correctly for other picture ration then 4:3
+:: * [x] wwidthPct and wheightPct transposed for portrait
+:: * [ ] get chunk size transposed correctly for other picture ratios then 3:2
 :: * [x] BUG: does not work for portrait
 :: * [x] BUG: does not work for pictures smaler then 2048
 :: * [ ] find a way to shift from bottom that's not a fixed amount of pixels
@@ -33,6 +33,7 @@
 :: * [ ] add option to overwrite original files
 ::
 :: * revisions:
+:: - 1.4.2    wwidthPct and wheightPct transposed for portrait
 :: - 1.4.1    bottomDistance is now a percentage and works for any size pictures
 :: - 1.4.0    create and stack chunks with different values of alpha/color with a number on top and let user choose the best one
 :: - 1.3.2    prompt for additional tags and alpha
@@ -52,7 +53,7 @@
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.4.1
+set version=1.4.2
 
 :: uncomment to enable DEBUG
 REM set DEBUG=true
@@ -68,7 +69,8 @@ chcp 65001 >NUL
 :defaults
 set alpha2try=0.5 0.3 1
 set fontColor2try="255,255,255" "0,0,0"
-:: watermark width and height as a percentage of a 4:3 landscape; ratios will be transposed for portrait
+:: watermark width and height as a percentage of a 3:2 landscape; ratios will be transposed for portrait
+:: this project started with my own 24M pictures that are 6000x4000 pixels which is a 3:2 ratio = 1.5
 set wwidthPct=30
 set wheightPct=9
 
@@ -228,6 +230,12 @@ REM 1663 1682
 
 :getWSIZE
 IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
+
+:: transposition of chunk percentages for portrait: very easy! we divide the chink ratios by the picture ratio
+IF %height% GTR %width% (
+  set /A wwidthPct=wwidthPct * width / height
+  set /A wheightPct=wheightPct * width / height
+)
 
 set /A wwidth   = width * wwidthPct / 100
 set /A wheight  = height * wheightPct / 100
