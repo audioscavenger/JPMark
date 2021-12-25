@@ -1,7 +1,7 @@
 # JPMark
 
 JPMark is a LOSSLESS JPEG watermarking tool.
-![JPMark](https://gitea.derewonko.com/audioscavenger/JPMark/blob/master/JPMark.png?raw=true)
+![JPMark](https://gitea.derewonko.com/audioscavenger/JPMark/raw/branch/master/JPMark.png)
 
 ## How does it work?
 It extracts a chunk and watermarks it using imagick, then jpegtran drops it back without the whole jpeg being re-encoded at all.
