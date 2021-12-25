@@ -33,6 +33,7 @@
 :: * [ ] add option to overwrite original files
 ::
 :: * revisions:
+:: - 1.4.3    added option to overwrite existing watermarked pictures
 :: - 1.4.2    wwidthPct and wheightPct transposed for portrait
 :: - 1.4.1    bottomDistance is now a percentage and works for any size pictures
 :: - 1.4.0    create and stack chunks with different values of alpha/color with a number on top and let user choose the best one
@@ -53,7 +54,7 @@
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.4.2
+set version=1.4.3
 
 :: uncomment to enable DEBUG
 REM set DEBUG=true
@@ -94,6 +95,8 @@ set promptForExifTagsFile=false
 set promptForAdditionalTags=true
 :: set this to true to also update the tags for the original image; after all, why would they be different?
 set alsoApplyTagsForOriginal=true
+:: set overwrite=true to overwite existing watermarked pictures
+set overwrite=false
 
 :: specify a true type font here
 set font=%~dp0\Romantica-RpXpW.ttf
@@ -149,8 +152,8 @@ goto :end
 
 
 :loop
-:: do not reprocess already processed files...
-IF NOT DEFINED DEBUG dir "%~dpn1%copyrightTag%%~x1" >NUL 2>&1 && goto :EOF
+:: do not reprocess already processed files unles you want it
+IF /I NOT "%overwrite%"=="true" dir "%~dpn1%copyrightTag%%~x1" >NUL 2>&1 && goto :EOF
 :: do not reprocess previous outputs...
 dir "%~1" | findstr /I /C:"%copyrightTag%%~x1" >NUL 2>&1 && goto :EOF
 
