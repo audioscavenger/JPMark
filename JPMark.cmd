@@ -19,18 +19,21 @@
 :: - exiftool https://exiftool.org/                                     ExifTool by Phil Harvey
 ::
 :: * TODO:
-:: * [ ] BUG: does not work for portrait
-:: * [ ] BUG: does not work for pictures smaler then 2048
+:: * [ ] wwidthPct and wheightPct transposed for portrait, still based off 4:3 ratio
+:: * [ ] get wwxwh transposed correctly for other picture ration then 4:3
+:: * [x] BUG: does not work for portrait
+:: * [x] BUG: does not work for pictures smaler then 2048
 :: * [ ] find a way to shift from bottom that's not a fixed amount of pixels
 :: * [ ] offer an easy way to place the watermark where user wants it
-:: * [ ] use Exif template for copyright: https://blog.laurencebichon.com/en/metadata-copyright-example-for-a-freelance-photographer/
+:: * [x] use Exif template for copyright: https://blog.laurencebichon.com/en/metadata-copyright-example-for-a-freelance-photographer/
 :: * [ ] add more examples for Exif/XMP?IPTC tags
-:: * [ ] export all custom values in a separate file/script
-:: * [ ] include a list of all fonts available with imagick
-:: * [ ] add prechecks for all required binaries
+:: * [ ] load all custom values from a separate file/script
+:: * [ ] include a list of all fonts available with imagick and in local folder or Windows fonts
+:: * [x] add prechecks for all required binaries
 :: * [ ] add option to overwrite original files
 ::
 :: * revisions:
+:: - 1.4.1    bottomDistance is now a percentage and works for any size pictures
 :: - 1.4.0    create and stack chunks with different values of alpha/color with a number on top and let user choose the best one
 :: - 1.3.2    prompt for additional tags and alpha
 :: - 1.3.1    prompt for different tagFiles
@@ -46,11 +49,10 @@
 :: wtop     = (height - wheight) + 80 modulo 8
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.4.0
+set version=1.4.1
 
 :: uncomment to enable DEBUG
 REM set DEBUG=true
@@ -64,11 +66,11 @@ set watermarkStack=%~dp0\watermark.%RANDOM%-stack.jpg
 chcp 65001 >NUL
 
 :defaults
-:: 99.99% of jpeg have a 8x8 block DCT with 2x1 sample factor, but this will be extracted from the original jpeg anyway
-set hsample=16
-set vsample=8
 set alpha2try=0.5 0.3 1
 set fontColor2try="255,255,255" "0,0,0"
+:: watermark width and height as a percentage of a 4:3 landscape; ratios will be transposed for portrait
+set wwidthPct=30
+set wheightPct=9
 
 ::::::::::::::::::::::::::::::::::::::::::::: customize your own values here :::::::::::::::::::::::::::::::::::::::::::::
 :custom
@@ -96,8 +98,8 @@ set font=%~dp0\Romantica-RpXpW.ttf
 :: watermark width and height as a percentage of your pictures
 set wwidthPct=30
 set wheightPct=9
-:: bottomDistance is the pixel distance from the bottom of the picture, at which the watermark will sit
-set bottomDistance=80
+:: bottomDistancePct is the percentage distance from the bottom of the picture, at which the watermark will sit
+set bottomDistancePct=2
 :: Gravity is the rough position of the watermark: Center, North, South, East, Northeast, etc; https://legacy.imagemagick.org/Usage/annotating/
 :: it has to be centered since we want to spread over the whole chunck we replace in the picture
 set wGravity=Center
@@ -199,6 +201,31 @@ echo Processing %~nx1 ... done 1>&2
 goto :EOF
 
 
+:getJpegInfo
+IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
+:: https://imagemagick.org/script/identify.php
+:: https://imagemagick.org/script/escape.php
+:: magick identify Filename[frame #] image-format widthxheight page-widthxpage-height+x-offset+y-offset colorspace user-time elapsed-time
+:: IT WORKS!!!! but you have to define the size of the layers. Both commands are equivalent:
+rem FOR /F "tokens=1,2 USEBACKQ" %%a IN (`magick identify -format "%%[fx:w]x%%[fx:h] %%[jpeg:sampling-factor]" %1`) DO SET SIZE=%%a %%b
+rem FOR /F "tokens=1,2 USEBACKQ" %%a IN (`magick identify -format ""%%wx%%h %[jpeg:sampling-factor]" %1`) DO SET SIZE=%%a %%b
+FOR /F "tokens=1-4 USEBACKQ" %%a IN (`magick identify -format "%%[fx:w] %%[fx:h] %%[jpeg:sampling-factor] %%Q" %1`) DO set "width=%%a" & set "height=%%b" & set "sampling=%%c" & set "Quality=%%d"
+set SIZE=%width%x%height%
+
+:: jpeg have 8x8 blocks DCT with a sampling factor that varies depending on compression choices; this needs to be extracted
+:: output of %[jpeg:sampling-factor] will look like 2x1,1x1,1x1; we keep only the first value
+:: samplingFactor needs to be reused for re-encoding the jpeg chunk exactly the same or we cannot drop it inside the image
+for /f "tokens=1"   %%a in ("%sampling:,= %") DO set "samplingFactor=%%a"
+:: sampling-factor of 2x1 means that your jpeg is made of 16x8 indivisible blocks
+for /f "tokens=1,2" %%a in ("%samplingFactor:x= %") DO set /A "hsample=%%a * 8" & set /A "vsample=%%b * 8"
+
+IF DEFINED DEBUG magick identify -ping %1 1>&2
+call :logDEBUG SIZE=%SIZE%
+goto :EOF
+
+REM 1663 1682
+
+
 :getWSIZE
 IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 
@@ -211,7 +238,7 @@ set /A wwidth   = wwidth - (wwidth %% hsample)
 set /A wheight  = wheight - (wheight %% vsample)
 
 set /A wleft    = (width - wwidth) / 2
-set /A wtop     = (height - wheight) - %bottomDistance%
+set /A wtop     = (height - wheight) - (bottomDistancePct * height / 100)
 :: hsample and vsample are used to calculate the modulo of the top/left position of the chunk, making the non-re-encoding of the whole picture possible
 set /A wleft    = wleft - (wleft %% hsample)
 set /A wtop     = wtop - (wtop %% vsample)
@@ -221,27 +248,6 @@ call :logDEBUG WPOS     =%wleft%+%wtop%
 
 set WSIZE=%wwidth%x%wheight%
 set "WPOS=%wleft%+%wtop%"
-goto :EOF
-
-
-:getJpegInfo
-IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
-:: https://imagemagick.org/script/identify.php
-:: https://imagemagick.org/script/escape.php
-:: magick identify Filename[frame #] image-format widthxheight page-widthxpage-height+x-offset+y-offset colorspace user-time elapsed-time
-:: IT WORKS!!!! but you have to define the size of the layers. Both commands are equivalent:
-rem FOR /F "tokens=1,2 USEBACKQ" %%a IN (`magick identify -format "%%[fx:w]x%%[fx:h] %%[jpeg:sampling-factor]" %1`) DO SET SIZE=%%a %%b
-rem FOR /F "tokens=1,2 USEBACKQ" %%a IN (`magick identify -format ""%%wx%%h %[jpeg:sampling-factor]" %1`) DO SET SIZE=%%a %%b
-FOR /F "tokens=1-4 USEBACKQ" %%a IN (`magick identify -format "%%[fx:w] %%[fx:h] %%[jpeg:sampling-factor] %%Q" %1`) DO set "width=%%a" & set "height=%%b" & set "sampling=%%c" & set "Quality=%%d"
-
-set SIZE=%width%x%height%
-:: output of %[jpeg:sampling-factor] will look like 2x1,1x1,1x1; we keep only the first value
-for /f "tokens=1"   %%a in ("%sampling:,= %") DO set "samplingFactor=%%a"
-:: sampling-factor of 2x1 means that your jpeg is made of 16x8 indivisible blocks
-for /f "tokens=1,2" %%a in ("%samplingFactor:x= %") DO set /A "hsample=%%a * 8" & set /A "vsample=%%b * 8"
-
-IF DEFINED DEBUG magick identify -ping %1 1>&2
-call :logDEBUG SIZE=%SIZE%
 goto :EOF
 
 
