@@ -19,21 +19,25 @@
 :: - exiftool https://exiftool.org/                                     ExifTool by Phil Harvey
 ::
 :: * TODO:
-:: * [ ] BUG: wwidthPct and wheightPct transposed still don't work for squares
+:: * [x] BUG: wwidthPct and wheightPct transposed still don't work for squares
 :: * [x] wwidthPct and wheightPct transposed for portrait
-:: * [ ] get chunk size transposed correctly for other picture ratios then 3:2
+:: * [ ] Offer an easy way to guess an ideal chink size for picture ratios different then 3:2
+:: * [ ] Offer an easy way to place the watermark where you want it
 :: * [x] BUG: does not work for portrait
 :: * [x] BUG: does not work for pictures smaler then 2048
-:: * [ ] find a way to shift from bottom that's not a fixed amount of pixels
-:: * [ ] offer an easy way to place the watermark where user wants it
+:: * [x] add option to overwrite original files
+:: * [ ] download all requisites automatically with powershell
+:: * [x] find a way to shift from bottom that's not a fixed amount of pixels
 :: * [x] use Exif template for copyright: https://blog.laurencebichon.com/en/metadata-copyright-example-for-a-freelance-photographer/
 :: * [ ] add more examples for Exif/XMP?IPTC tags
-:: * [ ] load all custom values from a separate file/script
 :: * [ ] include a list of all fonts available with imagick and in local folder or Windows fonts
 :: * [x] add prechecks for all required binaries
-:: * [ ] add option to overwrite original files
+:: * [ ] load all custom values from a separate file/script
+:: * [ ] make an app with an installer
+:: * [ ] make money
 ::
 :: * revisions:
+:: - 1.5.0    chunk size transpose now take care of any odd ratios! We simply base the chink size off a 3:2 ratio by calculating a fake width/height only for the chunk
 :: - 1.4.4    chunk size transpose bugfix for portrait
 :: - 1.4.3    added option to overwrite existing watermarked pictures
 :: - 1.4.2    wwidthPct and wheightPct transposed for portrait
@@ -56,7 +60,7 @@
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.4.4
+set version=1.5.0
 
 :: uncomment to enable DEBUG
 REM set DEBUG=true
@@ -75,6 +79,9 @@ set fontColor2try="255,255,255" "0,0,0"
 :: this project started with my own 24M pictures that are 6000x4000 pixels which is a 3:2 ratio = 1.5
 set wwidthPct=30
 set wheightPct=9
+:: to account for any shaped pictures such as squares and very wide landscapes, we always base our chunk ratio off a 3:2 ratio which is 1.5
+:: MSDOS cannot deal with real numbers so we simply store its value times 100 and will divide by 100 when needed
+set normalRatio=150
 
 ::::::::::::::::::::::::::::::::::::::::::::: customize your own values here :::::::::::::::::::::::::::::::::::::::::::::
 :custom
@@ -237,14 +244,21 @@ REM 1663 1682
 :getWSIZE
 IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 
-:: transposition of chunk percentages for portrait: very easy! we divide the chink ratios by the picture ratio
+:: Note about odd sized pictures: regardless of orientation, the size of the watermark text is still respected within the chunk, because of Point_Size. However, the chunk can become is fairly large for no reason on very wide pictures, so we want to avoid that.
+:: Transposition of chunk percentages for portrait: very easy! we divide the chunk ratios by the inverted picture ratio
+:: Bonus: this ratioHW calculated based off a 3:2 ratio also takes care or squares, which means we now cover all cases!
 IF %height% GTR %width% (
-  set /A wwidthPct=wwidthPct * height / width
-  set /A wheightPct=wheightPct * width / height
+  set ratioWidth=%width%
+  set /A ratioHeight=width * %normalRatio% / 100
+  call set /A wwidthPct=wwidthPct * ratioHeight / width
+  call set /A wheightPct=wheightPct * width / ratioHeight
+) ELSE (
+  set ratioHeight=%height%
+  set /A ratioWidth=height * %normalRatio% / 100
 )
 
-set /A wwidth   = width * wwidthPct / 100
-set /A wheight  = height * wheightPct / 100
+set /A wwidth   = ratioWidth * wwidthPct / 100
+set /A wheight  = ratioHeight * wheightPct / 100
 call :logDEBUG WSIZE    =%wwidth%x%wheight%
 
 :: hsample and vsample are used to calculate the modulo of the chunk size to ensure that it contains only indivisible blocks

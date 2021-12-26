@@ -11,7 +11,7 @@ The chunk size and position matches exaclty the nearest DCT block, based off the
 
 The chunk containing the watermark is recompressed with the exact same quality settings and sampling factor as the original picture.
 
-The watermark will be centered by default, near the bottom of your pictures. Actual position and size is customizable, and shoudl depend on the font you use. Some trial and error will be needed to make sure the chunk covers the watermark exactly.
+The watermark will be centered by default, near the bottom of your pictures. Actual position and size is customizable, and should depend on the font you use. Some trial and error will be needed to make sure the chunk covers the watermark exactly.
 
 Because the whole picture is NOT recompressed, it is blazing fast and you keep the original JPEG quality!
 
@@ -43,6 +43,7 @@ I do whatever I want :)
 - try a different font.ttf!
 
 ### TODO:
+* [x] BUG: wwidthPct and wheightPct transposed still don't work for squares
 * [x] wwidthPct and wheightPct transposed for portrait
 * [ ] Offer an easy way to guess an ideal chink size for picture ratios different then 3:2
 * [ ] Offer an easy way to place the watermark where you want it
@@ -60,6 +61,7 @@ I do whatever I want :)
 * [ ] make money
 
 ### revisions:
+- 1.5.0    chunk size transpose now take care of any odd ratios! We simply base the chink size off a 3:2 ratio by calculating a fake width/height only for the chunk
 - 1.4.4    chunk size transpose bugfix for portrait
 - 1.4.3    added option to overwrite existing watermarked pictures
 - 1.4.2    wwidthPct and wheightPct transposed for portrait
