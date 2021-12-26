@@ -60,6 +60,7 @@ I do whatever I want :)
 * [ ] make money
 
 ### revisions:
+- 1.4.4    chunk size transpose bugfix for portrait
 - 1.4.3    added option to overwrite existing watermarked pictures
 - 1.4.2    wwidthPct and wheightPct transposed for portrait
 - 1.4.1    bottomDistance is now a percentage and works for any size pictures

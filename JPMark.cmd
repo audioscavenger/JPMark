@@ -19,6 +19,7 @@
 :: - exiftool https://exiftool.org/                                     ExifTool by Phil Harvey
 ::
 :: * TODO:
+:: * [ ] BUG: wwidthPct and wheightPct transposed still don't work for squares
 :: * [x] wwidthPct and wheightPct transposed for portrait
 :: * [ ] get chunk size transposed correctly for other picture ratios then 3:2
 :: * [x] BUG: does not work for portrait
@@ -33,6 +34,7 @@
 :: * [ ] add option to overwrite original files
 ::
 :: * revisions:
+:: - 1.4.4    chunk size transpose bugfix for portrait
 :: - 1.4.3    added option to overwrite existing watermarked pictures
 :: - 1.4.2    wwidthPct and wheightPct transposed for portrait
 :: - 1.4.1    bottomDistance is now a percentage and works for any size pictures
@@ -54,15 +56,14 @@
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.4.3
+set version=1.4.4
 
 :: uncomment to enable DEBUG
 REM set DEBUG=true
-set chunkName=%~dp0\chunk.%RANDOM%
+set chunkName=%~dp0\chunk
 set chunkExt=png
-set watermarkName=%~dp0\watermark.%RANDOM%
+set watermarkName=%~dp0\watermark
 set watermarkExt=jpg
-set watermarkStack=%~dp0\watermark.%RANDOM%-stack.jpg
 
 :: codepage 65001 is pretty much UTF8, so you can use whichever unicode characters in your watermark
 chcp 65001 >NUL
@@ -96,7 +97,7 @@ set promptForAdditionalTags=true
 :: set this to true to also update the tags for the original image; after all, why would they be different?
 set alsoApplyTagsForOriginal=true
 :: set overwrite=true to overwite existing watermarked pictures
-set overwrite=false
+set overwrite=true
 
 :: specify a true type font here
 set font=%~dp0\Romantica-RpXpW.ttf
@@ -134,8 +135,6 @@ where magick >NUL 2>&1 || (echo %r%ERROR: magick.exe not found%END% 1>&2 & timeo
 where jpegtran >NUL 2>&1 || (echo %r%ERROR: jpegtran.exe not found%END% 1>&2 & timeout /t 5 & exit /b 99)
 IF /I "%addExifTagsFile%"=="true" where exiv2 >NUL 2>&1 || (echo %r%ERROR: exiv2.exe not found%END% 1>&2 & timeout /t 5 & exit /b 99)
 
-del /f /q %chunkName%.%chunkExt% %watermarkName%.%watermarkExt% 2>NUL
-
 
 :::::::::::::::::::::::::::::::::::::::::::::
 :::::::::::::::::::::::::::::::::::::::::::::
@@ -159,6 +158,8 @@ dir "%~1" | findstr /I /C:"%copyrightTag%%~x1" >NUL 2>&1 && goto :EOF
 
 :: outputFile must have a different name then the original file, unless overwriting is your goal
 set outputFile=%~dpn1%copyrightTag%%~x1
+set chunk=%chunkName%.%RANDOM%
+set watermark=%watermarkName%.%RANDOM%
 echo:
 echo Processing %~nx1 ... 1>&2
 
@@ -167,9 +168,9 @@ call :getWSIZE
 call :calculatePoint_Size
 
 :: we need a png chunk for transparency, bro
-call :extractMagick %1 %chunkName%.%chunkExt%
+call :extractMagick %1 %chunk%.%chunkExt%
 :: the command below does the same but extracts jpeg and there would be no transparency
-REM call :extractJpegtran %1 %chunkName%.%chunkExt%
+REM call :extractJpegtran %1 %chunk%.%chunkExt%
 
 IF /I "%promptForSampleTesting%"=="true" (
   set sample=0
@@ -178,23 +179,24 @@ IF /I "%promptForSampleTesting%"=="true" (
       call set /A sample+=1
       call set fontColor.%%sample%%=%%c
       call set fontAlpha.%%sample%%=%%a
-      call :genWatermarkStack %chunkName%.%chunkExt% %watermarkName%-%%sample%%.%watermarkExt% %font% %Point_Size% %%c %%a %%sample%%
+      call :genWatermarkStack %chunk%.%chunkExt% %watermark%-%%sample%%.%watermarkExt% %font% %Point_Size% %%c %%a %%sample%%
     )
   )
 ) ELSE (
-  call :genWatermark %chunkName%.%chunkExt% %watermarkName%.%watermarkExt% %font% %Point_Size% %fontColor% %fontAlpha%
+  call :genWatermark %chunk%.%chunkExt% %watermark% %font% %Point_Size% %fontColor% %fontAlpha%
 )
 
 
 IF /I "%promptForSampleTesting%"=="true" (
-  call :stackImages %watermarkName% %watermarkExt% %sample% %watermarkName%-stack.jpg
-  %watermarkName%-stack.jpg
+  call :stackImages %watermark% %watermarkExt% %sample% %watermark%-stack.%watermarkExt%
+  REM :: this should open the stack for the user to see, if the jpg pictures are associated with a viewer that is
+  %watermark%-stack.%watermarkExt%
   set /P sampleChoice=sampleChoice? [%sampleChoice%] 
 )
 IF /I "%promptForSampleTesting%"=="true" (
-  call :genWatermark %chunkName%.%chunkExt% %watermarkName%.%watermarkExt% %font% %Point_Size% %%fontColor.%sampleChoice%%% %%fontAlpha.%sampleChoice%%%
+  call :genWatermark %chunk%.%chunkExt% %watermark%.%watermarkExt% %font% %Point_Size% %%fontColor.%sampleChoice%%% %%fontAlpha.%sampleChoice%%%
 )
-call :pasteWatermark %watermarkName%.%watermarkExt% %1 %outputFile%
+call :pasteWatermark %watermark%.%watermarkExt% %1 %outputFile%
 
 call :addExifTags %outputFile% %1
 call :addManualTags %outputFile% %1
@@ -203,6 +205,7 @@ call :addManualTags %outputFile% %1
 IF DEFINED DEBUG %outputFile%
 
 echo Processing %~nx1 ... done 1>&2
+IF NOT DEFINED DEBUG del /f /q %chunk%* %watermark%* 2>NUL
 goto :EOF
 
 
@@ -236,7 +239,7 @@ IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 
 :: transposition of chunk percentages for portrait: very easy! we divide the chink ratios by the picture ratio
 IF %height% GTR %width% (
-  set /A wwidthPct=wwidthPct * width / height
+  set /A wwidthPct=wwidthPct * height / width
   set /A wheightPct=wheightPct * width / height
 )
 
@@ -465,7 +468,7 @@ goto :EOF
 
 
 :end
-IF NOT DEFINED DEBUG del /f /q %chunkName%.* %watermarkName%.* 2>NUL
+IF NOT DEFINED DEBUG del /f /q %chunkName%* %watermarkName%* 2>NUL
 IF DEFINED DEBUG timeout /t 5
 
 
