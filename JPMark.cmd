@@ -19,6 +19,7 @@
 :: - exiftool https://exiftool.org/                                     ExifTool by Phil Harvey
 ::
 :: * TODO:
+:: * [ ] BUG: 90deg LeftBottom orientation is an issue, watermark still dropped at the actual bottom i.e. the right side of the picture
 :: * [x] BUG: wwidthPct and wheightPct transposed still don't work for squares
 :: * [x] wwidthPct and wheightPct transposed for portrait
 :: * [ ] Offer an easy way to guess an ideal chink size for picture ratios different then 3:2
@@ -37,6 +38,7 @@
 :: * [ ] make money
 ::
 :: * revisions:
+:: - 1.5.1    bug discovered: depending on how orientation is stored, watermark may be vertical on right side of the picture
 :: - 1.5.0    chunk size transpose now take care of any odd ratios! We simply base the chink size off a 3:2 ratio by calculating a fake width/height only for the chunk
 :: - 1.4.4    chunk size transpose bugfix for portrait
 :: - 1.4.3    added option to overwrite existing watermarked pictures
@@ -60,10 +62,11 @@
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.5.0
+set version=1.5.1
 
 :: uncomment to enable DEBUG
 REM set DEBUG=true
+
 set chunkName=%~dp0\chunk
 set chunkExt=png
 set watermarkName=%~dp0\watermark
@@ -87,20 +90,18 @@ set normalRatio=150
 :custom
 :: it is critical that you provide here the path to jpegtran and imagick here
 set "PATH=%PATH%;E:\wintools\PortableApps\Magick;E:\wintools\multimedia\jpegtran;E:\wintools\multimedia\exiv2-0.27.4-2019msvc64\bin"
+
 :: watermarkText is, well, your watermark! Put you name or whatever unicode characters you like
 set watermarkText=©^&ric photography
+
 :: copyrightTag is added in the output filename before the extension: filename[copyrightTag].jpg
 set copyrightTag=-ldo
 :: exitTags are all the copyright.*.txt that you will be prompted to choose from, when tagging your pictures; first one is the default
 set exitTags=ldo ChristmasGrinch example
-:: in exifTagsFile you store the Exif/XMP?IPTC tags to add
+:: in exifTagsFile you store the Exif/XMP?IPTC tags to add; 'exitTag' will be replaced by the first value in exitTags or user choice if promptForExifTagsFile=true
 set exifTagsFile=%~dp0\copyright.exitTag.txt
 :: prompt for adding tags manually; set to false or comment it out to disable addExifTags
 set addExifTagsFile=true
-:: set this to false or comment it out to use the first file in the list exitTags, otherwise you will be prompted
-set promptForExifTagsFile=false
-:: set this to true to be prompted for additional tags to add manually
-set promptForAdditionalTags=true
 :: set this to true to also update the tags for the original image; after all, why would they be different?
 set alsoApplyTagsForOriginal=true
 :: set overwrite=true to overwite existing watermarked pictures
@@ -122,17 +123,23 @@ set textScale=80
 
 :: Scale will rescale your output files
 set Scale=100
-:: alpha is transparency of the watermark font
-set alpha=0.5
-:: let you choose alpha manually; comment or set to false to disable
-set promptForAlpha=true
+:: fontAlpha is transparency of the watermark font
+set fontAlpha=0.5
 :: RGB fontColor; user quotes because it's MSDOS
 set fontColor="255,255,255"
 
-:: interactive choice for color and alpha; will override promptForAlpha; do not use when looping over hundreds of images...
-set promptForSampleTesting=true
+:: various prompts
+:: let you choose fontAlpha manually; comment or set to false to disable
+set promptForAlpha=true
+:: set this to false or comment it out to use the first file in the list exitTags, otherwise you will be prompted
+set promptForExifTagsFile=false
+:: set this to true to be prompted for additional tags to add manually
+set promptForAdditionalTags=false
+:: interactive choice for fontColor and fontAlpha; will override promptForAlpha; do not use when looping over hundreds of images...
+set promptForSampleTesting=false
 :: the default sample choice when prompted; will be updated with user's last choice
 set sampleChoice=1
+
 ::::::::::::::::::::::::::::::::::::::::::::: customize your own values here :::::::::::::::::::::::::::::::::::::::::::::
 
 :prechecks
@@ -148,7 +155,7 @@ IF /I "%addExifTagsFile%"=="true" where exiv2 >NUL 2>&1 || (echo %r%ERROR: exiv2
 :main
 
 IF /I "%promptForSampleTesting%"=="true" set promptForAlpha=false
-IF /I "%promptForAlpha%"=="true" set /P alpha=alpha? [%alpha%] 
+IF /I "%promptForAlpha%"=="true" set /P fontAlpha=alpha? [%fontAlpha%] 
 
 call :isFolder %* && for %%F in ("%~1\*.jpg") DO call :loop %%F
 call :isFolder %* || for %%F in (%*)          DO call :loop %%F
@@ -184,13 +191,13 @@ IF /I "%promptForSampleTesting%"=="true" (
   for %%c in (%fontColor2try%) DO (
     for %%a in (%alpha2try%) DO (
       call set /A sample+=1
-      call set fontColor.%%sample%%=%%c
-      call set fontAlpha.%%sample%%=%%a
+      call set fontColor.%%sample%%="%%~c"
+      call set fontAlpha.%%sample%%=%%~a
       call :genWatermarkStack %chunk%.%chunkExt% %watermark%-%%sample%%.%watermarkExt% %font% %Point_Size% %%c %%a %%sample%%
     )
   )
 ) ELSE (
-  call :genWatermark %chunk%.%chunkExt% %watermark% %font% %Point_Size% %fontColor% %fontAlpha%
+    call :genWatermark %chunk%.%chunkExt% %watermark%.%watermarkExt% %font% %Point_Size% %fontColor% %fontAlpha%
 )
 
 
@@ -221,10 +228,23 @@ IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 :: https://imagemagick.org/script/identify.php
 :: https://imagemagick.org/script/escape.php
 :: magick identify Filename[frame #] image-format widthxheight page-widthxpage-height+x-offset+y-offset colorspace user-time elapsed-time
-:: IT WORKS!!!! but you have to define the size of the layers. Both commands are equivalent:
-rem FOR /F "tokens=1,2 USEBACKQ" %%a IN (`magick identify -format "%%[fx:w]x%%[fx:h] %%[jpeg:sampling-factor]" %1`) DO SET SIZE=%%a %%b
-rem FOR /F "tokens=1,2 USEBACKQ" %%a IN (`magick identify -format ""%%wx%%h %[jpeg:sampling-factor]" %1`) DO SET SIZE=%%a %%b
-FOR /F "tokens=1-4 USEBACKQ" %%a IN (`magick identify -format "%%[fx:w] %%[fx:h] %%[jpeg:sampling-factor] %%Q" %1`) DO set "width=%%a" & set "height=%%b" & set "sampling=%%c" & set "Quality=%%d"
+:: orientation is tricky:
+:: TopLeft  - 1
+:: TopRight  - 2
+:: BottomRight  - 3
+:: BottomLeft  - 4
+:: LeftTop  - 5
+:: RightTop  - 6
+:: RightBottom  - 7
+:: LeftBottom  - 8
+
+set orientation=
+FOR /F "tokens=1-5 USEBACKQ" %%a IN (`magick identify -format "%%[fx:w] %%[fx:h] %%[jpeg:sampling-factor] %%Q %%[EXIF:orientation]" %1`) DO set "width=%%a" & set "height=%%b" & set "sampling=%%c" & set "Quality=%%d" & set "orientation=%%e"
+
+:: covering all types of orientation is impossible, also why is there 8 and not just 4?
+:: you can only rotate the camera that much, does not make any sense to me
+:: 90 deg left is LeftBottom and that's the only way i take vertical pictures
+:: At the moment, I see no way to correctly extract and reinsert the chunk with correct orientation; 
 set SIZE=%width%x%height%
 
 :: jpeg have 8x8 blocks DCT with a sampling factor that varies depending on compression choices; this needs to be extracted
@@ -234,7 +254,8 @@ for /f "tokens=1"   %%a in ("%sampling:,= %") DO set "samplingFactor=%%a"
 :: sampling-factor of 2x1 means that your jpeg is made of 16x8 indivisible blocks
 for /f "tokens=1,2" %%a in ("%samplingFactor:x= %") DO set /A "hsample=%%a * 8" & set /A "vsample=%%b * 8"
 
-IF DEFINED DEBUG magick identify -ping %1 1>&2
+:: -auto-orient will correctly report the WxH but even when used at every stage of the process, chunk goes back on the right side of the picture
+IF DEFINED DEBUG magick identify -auto-orient -format "%%[fx:w] %%[fx:h] %%[jpeg:sampling-factor] %%Q %%[EXIF:orientation] \n" %1 1>&2
 call :logDEBUG SIZE=%SIZE%
 goto :EOF
 
@@ -294,8 +315,8 @@ goto :EOF
 
 :extractMagick input output
 IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
-IF DEFINED DEBUG echo magick -define jpeg:size=%SIZE% -extract %WSIZE%+%WPOS% %1 %2
-magick -define jpeg:size=%SIZE% -extract %WSIZE%+%WPOS% %1 %2
+IF DEFINED DEBUG echo magick convert -define jpeg:size=%SIZE% -extract %WSIZE%+%WPOS% %1 %2
+magick convert -define jpeg:size=%SIZE% -extract %WSIZE%+%WPOS% %1 %2
 goto :EOF
 
 :genWatermark input output %font% %Point_Size% "%fontColor%" %fontAlpha%
@@ -306,20 +327,20 @@ set input=%1
 set output=%2
 set font=%3
 set Point_Size=%4
-set fontColor=%~5
-set fontAlpha=%6
+set color=%~5
+set alpha=%6
 
 IF DEFINED DEBUG echo magick convert -size %WSIZE% xc:none %OPTIONS% %1 ^
 %resize% ^
--gravity %wGravity% ( -font %font% -pointsize %Point_Size% -fill rgba(%fontColor%,%fontAlpha%) -strokewidth 7 -annotate +0+0 "%watermarkText%" ) ^
--composite -gravity %wGravity% -font %font% -pointsize %Point_Size% -fill rgba(%fontColor%,%fontAlpha%) -stroke none      -annotate +0+0 "%watermarkText%" ^
+-gravity %wGravity% ( -font %font% -pointsize %Point_Size% -fill rgba(%color%,%alpha%) -strokewidth 7 -annotate +0+0 "%watermarkText%" ) ^
+-composite -gravity %wGravity% -font %font% -pointsize %Point_Size% -fill rgba(%color%,%alpha%) -stroke none      -annotate +0+0 "%watermarkText%" ^
 %JPEG_OPTIONS% ^
 %2
 
 magick convert -size %WSIZE% xc:none %OPTIONS% %1 ^
 %resize% ^
--gravity %wGravity% ( -font %font% -pointsize %Point_Size% -fill rgba(%fontColor%,%fontAlpha%) -strokewidth 7 -annotate +0+0 "%watermarkText%" ) ^
--composite -gravity %wGravity% -font %font% -pointsize %Point_Size% -fill rgba(%fontColor%,%fontAlpha%) -stroke none      -annotate +0+0 "%watermarkText%" ^
+-gravity %wGravity% ( -font %font% -pointsize %Point_Size% -fill rgba(%color%,%alpha%) -strokewidth 7 -annotate +0+0 "%watermarkText%" ) ^
+-composite -gravity %wGravity% -font %font% -pointsize %Point_Size% -fill rgba(%color%,%alpha%) -stroke none      -annotate +0+0 "%watermarkText%" ^
 %JPEG_OPTIONS% ^
 %2
 goto :EOF
@@ -483,6 +504,6 @@ goto :EOF
 
 :end
 IF NOT DEFINED DEBUG del /f /q %chunkName%* %watermarkName%* 2>NUL
-IF DEFINED DEBUG timeout /t 5
+IF DEFINED DEBUG pause
 
 

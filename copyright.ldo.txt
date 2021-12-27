@@ -22,7 +22,7 @@ set Xmp.dc.rights                                lang=en-US © 2021, Eric Derewo
 set Xmp.dc.publisher                                        https://www.derewonko.com
 
 # THESE ARE YOUR TAGS; All tags must be separated by comma + space
-# set Xmp.dc.subject                               XmpBag     USA, AZ
+set Xmp.dc.subject                               XmpBag     USA, AZ
 
 # Sample Exiv2 command file https://exiv2.org/sample.html
 # -------------------------
