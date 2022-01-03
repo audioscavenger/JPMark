@@ -20,6 +20,7 @@
 ::
 :: * TODO:
 :: * [ ] BUG: 90deg LeftBottom orientation is an issue, watermark still dropped at the actual bottom i.e. the right side of the picture
+:: * [ ] BUG: handle folders and pictures with spaces in their names
 :: * [x] BUG: wwidthPct and wheightPct transposed still don't work for squares
 :: * [x] wwidthPct and wheightPct transposed for portrait
 :: * [ ] Offer an easy way to guess an ideal chink size for picture ratios different then 3:2
@@ -38,6 +39,7 @@
 :: * [ ] make money
 ::
 :: * revisions:
+:: - 1.5.2    offers to apply manual tags to all pictures
 :: - 1.5.1    bug discovered: depending on how orientation is stored, watermark may be vertical on right side of the picture
 :: - 1.5.0    chunk size transpose now take care of any odd ratios! We simply base the chink size off a 3:2 ratio by calculating a fake width/height only for the chunk
 :: - 1.4.4    chunk size transpose bugfix for portrait
@@ -62,7 +64,7 @@
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.5.1
+set version=1.5.2
 
 :: uncomment to enable DEBUG
 REM set DEBUG=true
@@ -96,9 +98,9 @@ set watermarkText=©^&ric photography
 
 :: copyrightTag is added in the output filename before the extension: filename[copyrightTag].jpg
 set copyrightTag=-ldo
-:: exitTags are all the copyright.*.txt that you will be prompted to choose from, when tagging your pictures; first one is the default
-set exitTags=ldo ChristmasGrinch example
-:: in exifTagsFile you store the Exif/XMP?IPTC tags to add; 'exitTag' will be replaced by the first value in exitTags or user choice if promptForExifTagsFile=true
+:: exitTagsFilename are all the copyright.*.txt that you will be prompted to choose from, when tagging your pictures; first one is the default
+set exitTagsFilename=ldo ChristmasGrinch example
+:: in exifTagsFile you store the Exif/XMP?IPTC tags to add; 'exitTag' will be replaced by the first value in exitTagsFilename or user choice if promptForExifTagsFile=true
 set exifTagsFile=%~dp0\copyright.exitTag.txt
 :: prompt for adding tags manually; set to false or comment it out to disable addExifTags
 set addExifTagsFile=true
@@ -131,10 +133,10 @@ set fontColor="255,255,255"
 :: various prompts
 :: let you choose fontAlpha manually; comment or set to false to disable
 set promptForAlpha=true
-:: set this to false or comment it out to use the first file in the list exitTags, otherwise you will be prompted
+:: set this to false or comment it out to use the first file in the list exitTagsFilename, otherwise you will be prompted
 set promptForExifTagsFile=false
 :: set this to true to be prompted for additional tags to add manually
-set promptForAdditionalTags=false
+set promptForAdditionalTags=true
 :: interactive choice for fontColor and fontAlpha; will override promptForAlpha; do not use when looping over hundreds of images...
 set promptForSampleTesting=false
 :: the default sample choice when prompted; will be updated with user's last choice
@@ -213,6 +215,7 @@ IF /I "%promptForSampleTesting%"=="true" (
 call :pasteWatermark %watermark%.%watermarkExt% %1 %outputFile%
 
 call :addExifTags %outputFile% %1
+call :promptForManualTags %outputFile%
 call :addManualTags %outputFile% %1
 
 :: this will open the file and pause the batch until you close it
@@ -416,10 +419,10 @@ goto :EOF
 IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 IF NOT "%addExifTagsFile%"=="true" exit /b 0
 
-for /f "tokens=1" %%a in ("%exitTags%") DO set exifTagDefault=%%a
+for /f "tokens=1" %%a in ("%exitTagsFilename%") DO set exifTagDefault=%%a
 IF "%promptForExifTagsFile%"=="true" (
   echo:
-  echo               %exitTags%
+  echo               %exitTagsFilename%
   set /P exifTagDefault=exifTagFile? [%exifTagDefault%] 
 )
 
@@ -437,14 +440,25 @@ IF EXIST %exifTagsFileToUse% (
 )
 goto :EOF
 
-:addManualTags output
+:promptForManualTags output
 IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 IF NOT "%promptForAdditionalTags%"=="true" exit /b 0
+IF     "%applyCurrentManualTagsToAllImages%"=="true" exit /b 0
 
 echo:
 exiv2 -px %1 | findstr subject
 echo       REPLACE all tags, enter tags separated by comma:
 set /P tags=tags? [%tags%] 
+
+set    applyCurrentManualTagsToAllImages=n
+set /P applyCurrentManualTagsToAllImages=apply those tags to all other images? [N/y] 
+IF /I "%applyCurrentManualTagsToAllImages%"=="y" set applyCurrentManualTagsToAllImages=true
+
+goto :EOF
+
+
+:addManualTags output original
+IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 
 :: exiv2 has a bug with XMP: 'add' will REPLACE tags, 'set' will ADD tags to the list
 IF DEFINED tags (
