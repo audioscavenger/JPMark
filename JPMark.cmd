@@ -39,6 +39,7 @@
 :: * [ ] make money
 ::
 :: * revisions:
+:: - 1.5.3    do not ask for applying same tags to other pictures when only one has been passed
 :: - 1.5.2    offers to apply manual tags to all pictures
 :: - 1.5.1    bug discovered: depending on how orientation is stored, watermark may be vertical on right side of the picture
 :: - 1.5.0    chunk size transpose now take care of any odd ratios! We simply base the chink size off a 3:2 ratio by calculating a fake width/height only for the chunk
@@ -64,11 +65,12 @@
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.5.2
+set version=1.5.3
 
 :: uncomment to enable DEBUG
 REM set DEBUG=true
 
+set arg2=%2
 set chunkName=%~dp0\chunk
 set chunkExt=png
 set watermarkName=%~dp0\watermark
@@ -126,7 +128,7 @@ set textScale=80
 :: Scale will rescale your output files
 set Scale=100
 :: fontAlpha is transparency of the watermark font
-set fontAlpha=0.5
+set fontAlpha=0.3
 :: RGB fontColor; user quotes because it's MSDOS
 set fontColor="255,255,255"
 
@@ -450,6 +452,8 @@ exiv2 -px %1 | findstr subject
 echo       REPLACE all tags, enter tags separated by comma:
 set /P tags=tags? [%tags%] 
 
+:: 1.5.3
+IF NOT DEFINED arg2 goto :EOF
 set    applyCurrentManualTagsToAllImages=n
 set /P applyCurrentManualTagsToAllImages=apply those tags to all other images? [N/y] 
 IF /I "%applyCurrentManualTagsToAllImages%"=="y" set applyCurrentManualTagsToAllImages=true
