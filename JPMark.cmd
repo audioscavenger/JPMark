@@ -39,6 +39,7 @@
 :: * [ ] make money
 ::
 :: * revisions:
+:: - 1.5.4    added ersatz of tags history in history.ini
 :: - 1.5.3    do not ask for applying same tags to other pictures when only one has been passed
 :: - 1.5.2    offers to apply manual tags to all pictures
 :: - 1.5.1    bug discovered: depending on how orientation is stored, watermark may be vertical on right side of the picture
@@ -65,7 +66,7 @@
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.5.3
+set version=1.5.4
 
 :: uncomment to enable DEBUG
 REM set DEBUG=true
@@ -75,6 +76,7 @@ set chunkName=%~dp0\chunk
 set chunkExt=png
 set watermarkName=%~dp0\watermark
 set watermarkExt=jpg
+set history=%~dpn0.ini
 
 :: codepage 65001 is pretty much UTF8, so you can use whichever unicode characters in your watermark
 chcp 65001 >NUL
@@ -447,6 +449,8 @@ IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 IF NOT "%promptForAdditionalTags%"=="true" exit /b 0
 IF     "%applyCurrentManualTagsToAllImages%"=="true" exit /b 0
 
+call :getHistory
+
 echo:
 exiv2 -px %1 | findstr subject
 echo       REPLACE all tags, enter tags separated by comma:
@@ -457,6 +461,8 @@ IF NOT DEFINED arg2 goto :EOF
 set    applyCurrentManualTagsToAllImages=n
 set /P applyCurrentManualTagsToAllImages=apply those tags to all other images? [N/y] 
 IF /I "%applyCurrentManualTagsToAllImages%"=="y" set applyCurrentManualTagsToAllImages=true
+
+call :putHistory tags
 
 goto :EOF
 
@@ -479,6 +485,18 @@ goto :EOF
 
 :logDEBUG
 IF DEFINED DEBUG echo %m%DEBUG: %* %END% 1>&2
+goto :EOF
+
+
+:getHistory [tag]
+IF EXIST %history% (
+  IF "%1"=="" (for /f "tokens=*" %%t in (%history%) do set "%%t") ELSE for /f "tokens=*" %%t in ('findstr /I /B %1 %history%') do set "%%t"
+) ELSE exit /b 1
+goto :EOF
+
+
+:putHistory tag[s]
+for %%t in (%*) DO (call echo %%t=%%%%t%%)>>%history%
 goto :EOF
 
 
