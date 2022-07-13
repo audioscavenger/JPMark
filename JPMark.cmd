@@ -19,8 +19,9 @@
 :: - exiftool https://exiftool.org/                                     ExifTool by Phil Harvey
 ::
 :: * TODO:
+:: * [ ] BUG: xmpbag tags seems to add up instead of replacing, not sure why
 :: * [ ] BUG: 90deg LeftBottom orientation is an issue, watermark still dropped at the actual bottom i.e. the right side of the picture
-:: * [ ] BUG: handle folders and pictures with spaces in their names
+:: * [x] BUG: handle folders and pictures with spaces in their names
 :: * [x] BUG: wwidthPct and wheightPct transposed still don't work for squares
 :: * [x] wwidthPct and wheightPct transposed for portrait
 :: * [ ] Offer an easy way to guess an ideal chink size for picture ratios different then 3:2
@@ -39,6 +40,10 @@
 :: * [ ] make money
 ::
 :: * revisions:
+:: - 1.5.8    fonts moved to fonts folder
+:: - 1.5.7    copyright exif files are now auto detected
+:: - 1.5.6    bugfix history saved in history.ini
+:: - 1.5.5    BUGFIX: handle folders and pictures with spaces in their names
 :: - 1.5.4    added ersatz of tags history in history.ini
 :: - 1.5.3    do not ask for applying same tags to other pictures when only one has been passed
 :: - 1.5.2    offers to apply manual tags to all pictures
@@ -63,20 +68,26 @@
 :: wtop     = (height - wheight) + 80 modulo 8
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.5.4
+set version=1.5.8
 
-:: uncomment to enable DEBUG
+:: uncomment below to enable DEBUG lines and pauses; also temporary chuncks ans stacks won't be deleted
 REM set DEBUG=true
 
 set arg2=%2
-set chunkName=%~dp0\chunk
+set chunkBasename=%~dp0chunk
 set chunkExt=png
-set watermarkName=%~dp0\watermark
+set watermarkBasename=%~dp0watermark
 set watermarkExt=jpg
-set history=%~dpn0.ini
+set history="%~dpn0.history.ini"
+set exifTagsFilePath=%~dp0
+set fontsPath=%~dp0fonts
+
+:: all my tools are located in the same path of different drives, depending on the desktop I use. Adapt the d e s drive letters to your needs
+for %%d in (d e s) DO IF EXIST %%d:\wintools\ set DDrive=%%d
 
 :: codepage 65001 is pretty much UTF8, so you can use whichever unicode characters in your watermark
 chcp 65001 >NUL
@@ -94,27 +105,29 @@ set normalRatio=150
 
 ::::::::::::::::::::::::::::::::::::::::::::: customize your own values here :::::::::::::::::::::::::::::::::::::::::::::
 :custom
-:: it is critical that you provide here the path to jpegtran and imagick here
-set "PATH=%PATH%;E:\wintools\PortableApps\Magick;E:\wintools\multimedia\jpegtran;E:\wintools\multimedia\exiv2-0.27.4-2019msvc64\bin"
+:: It is critical that you provide here the path to jpegtran and imagick. Adapt to your needs.
+:: Exiv2 is only used for tags, and can be ignored.
+set magickPATH=%DDrive%:\wintools\PortableApps\Magick
+set exiv2PATH=%DDrive%:\wintools\multimedia\exiv2\bin
+set jpegtranPATH=%DDrive%:\wintools\multimedia\jpegtran
 
-:: watermarkText is, well, your watermark! Put you name or whatever unicode characters you like
-set watermarkText=©^&ric photography
+:: watermarkText is, well, your watermark text! Input you name or whatever unicode characters you like. Escape MDSOS characters with "^"
+:: enclose the whole variable + text with ""
+set "watermarkText=©^&ric photography"
 
 :: copyrightTag is added in the output filename before the extension: filename[copyrightTag].jpg
 set copyrightTag=-ldo
-:: exitTagsFilename are all the copyright.*.txt that you will be prompted to choose from, when tagging your pictures; first one is the default
-set exitTagsFilename=ldo ChristmasGrinch example
-:: in exifTagsFile you store the Exif/XMP?IPTC tags to add; 'exitTag' will be replaced by the first value in exitTagsFilename or user choice if promptForExifTagsFile=true
-set exifTagsFile=%~dp0\copyright.exitTag.txt
+:: in exifTagsFile you store the Exif/XMP/IPTC tags to add; you can create many differnt copyright files to choose from.
+set exifTagsFilePath=%~dp0
 :: prompt for adding tags manually; set to false or comment it out to disable addExifTags
 set addExifTagsFile=true
 :: set this to true to also update the tags for the original image; after all, why would they be different?
-set alsoApplyTagsForOriginal=true
+set alsoApplyTagsForOriginal=false
 :: set overwrite=true to overwite existing watermarked pictures
 set overwrite=true
 
 :: specify a true type font here
-set font=%~dp0\Romantica-RpXpW.ttf
+set font="%fontsPath%\Romantica-RpXpW.ttf"
 :: watermark width and height as a percentage of your pictures
 set wwidthPct=30
 set wheightPct=9
@@ -137,8 +150,8 @@ set fontColor="255,255,255"
 :: various prompts
 :: let you choose fontAlpha manually; comment or set to false to disable
 set promptForAlpha=true
-:: set this to false or comment it out to use the first file in the list exitTagsFilename, otherwise you will be prompted
-set promptForExifTagsFile=false
+:: set this to false or comment it out to use the first file in the alphabetically detected exifTagsFilenames, otherwise you will be prompted
+set promptForExifTagsFile=true
 :: set this to true to be prompted for additional tags to add manually
 set promptForAdditionalTags=true
 :: interactive choice for fontColor and fontAlpha; will override promptForAlpha; do not use when looping over hundreds of images...
@@ -149,6 +162,8 @@ set sampleChoice=1
 ::::::::::::::::::::::::::::::::::::::::::::: customize your own values here :::::::::::::::::::::::::::::::::::::::::::::
 
 :prechecks
+set "PATH=%PATH%;%magickPATH%;%exiv2PATH%;%jpegtranPATH%"
+
 call :set_colors
 IF "%~1"=="" echo %r%ERROR: %~n0 takes arguments: jpeg(s) to process%END% 1>&2 & timeout /t 5 & exit /b 99
 where magick >NUL 2>&1 || (echo %r%ERROR: magick.exe not found%END% 1>&2 & timeout /t 5 & exit /b 99)
@@ -177,20 +192,20 @@ IF /I NOT "%overwrite%"=="true" dir "%~dpn1%copyrightTag%%~x1" >NUL 2>&1 && goto
 dir "%~1" | findstr /I /C:"%copyrightTag%%~x1" >NUL 2>&1 && goto :EOF
 
 :: outputFile must have a different name then the original file, unless overwriting is your goal
-set outputFile=%~dpn1%copyrightTag%%~x1
-set chunk=%chunkName%.%RANDOM%
-set watermark=%watermarkName%.%RANDOM%
+set outputFile="%~dpn1%copyrightTag%%~x1"
+set chunk="%chunkBasename%.%RANDOM%.%chunkExt%"
+set watermarkRand=%watermarkBasename%.%RANDOM%
 echo:
-echo Processing %~nx1 ... 1>&2
+echo %y%Processing%END% %~nx1 ... 1>&2
 
 call :getJpegInfo %1
 call :getWSIZE
 call :calculatePoint_Size
 
 :: we need a png chunk for transparency, bro
-call :extractMagick %1 %chunk%.%chunkExt%
+call :extractMagick %1 %chunk%
 :: the command below does the same but extracts jpeg and there would be no transparency
-REM call :extractJpegtran %1 %chunk%.%chunkExt%
+REM call :extractJpegtran %1 %chunk%
 
 IF /I "%promptForSampleTesting%"=="true" (
   set sample=0
@@ -199,24 +214,24 @@ IF /I "%promptForSampleTesting%"=="true" (
       call set /A sample+=1
       call set fontColor.%%sample%%="%%~c"
       call set fontAlpha.%%sample%%=%%~a
-      call :genWatermarkStack %chunk%.%chunkExt% %watermark%-%%sample%%.%watermarkExt% %font% %Point_Size% %%c %%a %%sample%%
+      call :genWatermarkStack %chunk% "%watermarkRand%-%%sample%%.%watermarkExt%" %font% %Point_Size% %%c %%a %%sample%%
     )
   )
 ) ELSE (
-    call :genWatermark %chunk%.%chunkExt% %watermark%.%watermarkExt% %font% %Point_Size% %fontColor% %fontAlpha%
+    call :genWatermark %chunk% "%watermarkRand%.%watermarkExt%" %font% %Point_Size% %fontColor% %fontAlpha%
 )
 
 
 IF /I "%promptForSampleTesting%"=="true" (
-  call :stackImages %watermark% %watermarkExt% %sample% %watermark%-stack.%watermarkExt%
+  call :stackImages "%watermarkRand%" %watermarkExt% %sample% "%watermarkRand%-stack.%watermarkExt%"
   REM :: this should open the stack for the user to see, if the jpg pictures are associated with a viewer that is
-  %watermark%-stack.%watermarkExt%
+  "%watermarkRand%-stack.%watermarkExt%"
   set /P sampleChoice=sampleChoice? [%sampleChoice%] 
 )
 IF /I "%promptForSampleTesting%"=="true" (
-  call :genWatermark %chunk%.%chunkExt% %watermark%.%watermarkExt% %font% %Point_Size% %%fontColor.%sampleChoice%%% %%fontAlpha.%sampleChoice%%%
+  call :genWatermark %chunk% "%watermarkRand%.%watermarkExt%" %font% %Point_Size% %%fontColor.%sampleChoice%%% %%fontAlpha.%sampleChoice%%%
 )
-call :pasteWatermark %watermark%.%watermarkExt% %1 %outputFile%
+call :pasteWatermark "%watermarkRand%.%watermarkExt%" "%~1" %outputFile%
 
 call :addExifTags %outputFile% %1
 call :promptForManualTags %outputFile%
@@ -225,8 +240,8 @@ call :addManualTags %outputFile% %1
 :: this will open the file and pause the batch until you close it
 IF DEFINED DEBUG %outputFile%
 
-echo Processing %~nx1 ... done 1>&2
-IF NOT DEFINED DEBUG del /f /q %chunk%* %watermark%* 2>NUL
+echo %y%Processing%w% %~nx1 ... %g%DONE%END% 1>&2
+IF NOT DEFINED DEBUG del /f /q "%chunk%*" "%watermarkRand%*" 2>NUL
 goto :EOF
 
 
@@ -397,15 +412,15 @@ REM DEBUG: set WPOS=2120+3584
 
 REM jpegtran -crop %newWidth%x%newHeight%+0+0 -optimize %1 %2
 REM jpegtran -crop %WSIZE%+%WPOS% DZ6_6045.JPG %~dp0\chunk.jpg
-IF DEFINED DEBUG echo jpegtran -copy all -crop %WSIZE%+%WPOS% -optimize %1 %2
-jpegtran -copy all -crop %WSIZE%+%WPOS% -optimize %1 %2
+IF DEFINED DEBUG echo jpegtran -copy all -crop %WSIZE%+%WPOS% -optimize "%~1" "%~2"
+jpegtran -copy all -crop %WSIZE%+%WPOS% -optimize "%~1" "%~2"
 
 goto :EOF
 
 :pasteWatermark watermark input output
 IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
-IF DEFINED DEBUG echo jpegtran -copy all -drop +%WPOS% %1 -optimize %2 %3
-jpegtran -copy all -drop +%WPOS% %1 -optimize %2 %3
+IF DEFINED DEBUG echo jpegtran -copy all -drop +%WPOS% "%~1" -optimize "%~2" "%~3"
+jpegtran -copy all -drop +%WPOS% "%~1" -optimize "%~2" "%~3"
 goto :EOF
 
 
@@ -413,9 +428,9 @@ goto :EOF
 IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 
 set stacks=
-for /L %%n in (1,1,%3) DO call set stacks=%%stacks%% %1-%%n.%2
-IF DEFINED DEBUG echo magick convert %stacks% -gravity center -append %4
-magick convert %stacks% -gravity center -append %4
+for /L %%n in (1,1,%3) DO call set stacks=%%stacks%% "%~1-%%n.%~2"
+IF DEFINED DEBUG echo magick convert %stacks% -gravity center -append "%~4"
+magick convert %stacks% -gravity center -append "%~4"
 goto :EOF
 
 
@@ -423,24 +438,33 @@ goto :EOF
 IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 IF NOT "%addExifTagsFile%"=="true" exit /b 0
 
-for /f "tokens=1" %%a in ("%exitTagsFilename%") DO set exifTagDefault=%%a
+set exifTagFileName=
+:: exifTagsFilenames are all the copyright.*.txt that you will be prompted to choose from, when tagging your pictures; first alphabetical one is the default.
+for /f "tokens=2 delims=." %%c in ('dir /b /o-n "%exifTagsFilePath%\copyright.*.txt"') DO set exifTagsFilenames=%exifTagsFilenames% %%c
+
+:: exit if not copyright file is found
+IF NOT DEFINED exifTagFileName exit /b 1
+
 IF "%promptForExifTagsFile%"=="true" (
   echo:
-  echo               %exitTagsFilename%
-  set /P exifTagDefault=exifTagFile? [%exifTagDefault%] 
+  echo               %exifTagsFilenames%
+  set /P exifTagFileName=exifTagFile? [%exifTagFileName%] 
 )
 
 :: now get the actual filename
-call set exifTagsFileToUse=%%exifTagsFile:exitTag=%exifTagDefault%%%
+set exifTagsFileToUse="%exifTagsFilePath%\copyright.%exifTagFileName%.txt"
 
 IF EXIST %exifTagsFileToUse% (
   IF DEFINED DEBUG echo exiv2 -m %exifTagsFileToUse% %1
+  IF DEFINED DEBUG pause
   exiv2 -m %exifTagsFileToUse% %1
   IF DEFINED DEBUG exiv2 -pi %1
   
   IF /I NOT "%alsoApplyTagsForOriginal%"=="true" goto :EOF
   IF DEFINED DEBUG echo exiv2 -m %exifTagsFileToUse% %2
   exiv2 -m %exifTagsFileToUse% %2
+) ELSE (
+  echo ERROR: file %exifTagsFileToUse% not found
 )
 goto :EOF
 
@@ -462,7 +486,7 @@ set    applyCurrentManualTagsToAllImages=n
 set /P applyCurrentManualTagsToAllImages=apply those tags to all other images? [N/y] 
 IF /I "%applyCurrentManualTagsToAllImages%"=="y" set applyCurrentManualTagsToAllImages=true
 
-call :putHistory tags
+call :putHistory "%tags%"
 
 goto :EOF
 
@@ -489,14 +513,24 @@ goto :EOF
 
 
 :getHistory [tag]
-IF EXIST %history% (
-  IF "%1"=="" (for /f "tokens=*" %%t in (%history%) do set "%%t") ELSE for /f "tokens=*" %%t in ('findstr /I /B %1 %history%') do set "%%t"
-) ELSE exit /b 1
+:: history lines are in the form: tags=USA, AZ, Las Vegas, Road
+IF NOT EXIST %history% exit /b 1
+
+IF NOT "%~1"=="" for /f "tokens=*" %%t in ('findstr /I /C:"%~1" %history%') do set "%%t"
+:: the beauty of MSDOS... escaped file names look like strings for the for loop, must remove the quotes
+IF     "%~1"=="" for /f "tokens=*" %%t in (%history:~1,-1%) do echo DEBUG: set "%%t"
+IF     "%~1"=="" for /f "tokens=*" %%t in (%history:~1,-1%) do set "%%t"
+
 goto :EOF
 
 
-:putHistory tag[s]
-for %%t in (%*) DO (call echo %%t=%%%%t%%)>>%history%
+:putHistory "tags"
+:: tags should be separated by comma+space and protected by quotes
+REM for %%t in (%*) DO (call echo %%t=%%%%t%%)>>%history%
+IF DEFINED DEBUG echo DEBUG: tags=%~1 ^>^>%history%
+IF DEFINED DEBUG pause
+
+echo tags=%~1 >>%history%
 goto :EOF
 
 
@@ -539,7 +573,7 @@ goto :EOF
 
 
 :end
-IF NOT DEFINED DEBUG del /f /q %chunkName%* %watermarkName%* 2>NUL
+IF NOT DEFINED DEBUG del /f /q "%chunkBasename%*" "%watermarkBasename%*" 2>NUL
 IF DEFINED DEBUG pause
 
 
