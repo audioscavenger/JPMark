@@ -21,6 +21,7 @@
 :: * TODO:
 :: * [ ] BUG: xmpbag tags seems to add up instead of replacing, not sure why
 :: * [ ] BUG: 90deg LeftBottom orientation is an issue, watermark still dropped at the actual bottom i.e. the right side of the picture
+:: * [ ] show only last 10 lines of tags history
 :: * [x] BUG: handle folders and pictures with spaces in their names
 :: * [x] BUG: wwidthPct and wheightPct transposed still don't work for squares
 :: * [x] wwidthPct and wheightPct transposed for portrait
@@ -28,18 +29,29 @@
 :: * [ ] Offer an easy way to place the watermark where you want it
 :: * [x] BUG: does not work for portrait
 :: * [x] BUG: does not work for pictures smaler then 2048
-:: * [x] add option to overwrite original files
+:: * [x] add option to overwrite input files
 :: * [ ] download all requisites automatically with powershell
 :: * [x] find a way to shift from bottom that's not a fixed amount of pixels
 :: * [x] use Exif template for copyright: https://blog.laurencebichon.com/en/metadata-copyright-example-for-a-freelance-photographer/
 :: * [ ] add more examples for Exif/XMP?IPTC tags
 :: * [ ] include a list of all fonts available with imagick and in local folder or Windows fonts
 :: * [x] add prechecks for all required binaries
+:: * [ ] process any picture extension
 :: * [ ] load all custom values from a separate file/script
 :: * [ ] make an app with an installer
 :: * [ ] make money
 ::
 :: * revisions:
+:: - 1.5.18   temporary files are now named afer the input file inside the same folder
+:: - 1.5.17   renames exifTag to xmpTag
+:: - 1.5.16   properly set tagsA tagsR as the command to insert XMP tags is different
+:: - 1.5.15   properly detect multiple files even within a single folder argument
+:: - 1.5.14   now process mixed folders/files as arguments
+:: - 1.5.13   now putXmpTagsHistory only add uniq lines
+:: - 1.5.12   bugfix in putXmpTagsHistory where space was added at the end of tag list
+:: - 1.5.11   bugfix in putXmpTagsHistory call order
+:: - 1.5.10   offers to add or replace exif tags
+:: - 1.5.9    renaming conventions
 :: - 1.5.8    fonts moved to fonts folder
 :: - 1.5.7    copyright exif files are now auto detected
 :: - 1.5.6    bugfix history saved in history.ini
@@ -72,27 +84,36 @@
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.5.8
+set version=1.6.0
 
 :: uncomment below to enable DEBUG lines and pauses; also temporary chuncks ans stacks won't be deleted
 REM set DEBUG=true
 
-set arg2=%2
-set chunkBasename=%~dp0chunk
+:: codepage 65001 is pretty much UTF8, so you can use whichever unicode characters in your watermark
+chcp 65001 >NUL
+
+set tags=
+set tagsA=
+set tagsR=
+set moreThenOneArg=
+
+:arguments
+IF NOT "%~2"=="" set moreThenOneArg=true
+
+
+:defaults
 set chunkExt=png
-set watermarkBasename=%~dp0watermark
+set chunkBasename=chunk
+set watermarkBasename=watermark
 set watermarkExt=jpg
 set history="%~dpn0.history.ini"
-set exifTagsFilePath=%~dp0
+set copyrightFilePath=%~dp0
 set fontsPath=%~dp0fonts
+set applyCurrentManualTagsToAllImages=false
 
 :: all my tools are located in the same path of different drives, depending on the desktop I use. Adapt the d e s drive letters to your needs
 for %%d in (d e s) DO IF EXIST %%d:\wintools\ set DDrive=%%d
 
-:: codepage 65001 is pretty much UTF8, so you can use whichever unicode characters in your watermark
-chcp 65001 >NUL
-
-:defaults
 set alpha2try=0.5 0.3 1
 set fontColor2try="255,255,255" "0,0,0"
 :: watermark width and height as a percentage of a 3:2 landscape; ratios will be transposed for portrait
@@ -111,18 +132,18 @@ set magickPATH=%DDrive%:\wintools\PortableApps\Magick
 set exiv2PATH=%DDrive%:\wintools\multimedia\exiv2\bin
 set jpegtranPATH=%DDrive%:\wintools\multimedia\jpegtran
 
-:: watermarkText is, well, your watermark text! Input you name or whatever unicode characters you like. Escape MDSOS characters with "^"
+:: watermarkText is, well, your watermark text! Input you name or whatever unicode characters you like.
 :: enclose the whole variable + text with ""
-set "watermarkText=©^&ric photography"
+set "watermarkText=©&ric photography"
 
 :: copyrightTag is added in the output filename before the extension: filename[copyrightTag].jpg
 set copyrightTag=-ldo
-:: in exifTagsFile you store the Exif/XMP/IPTC tags to add; you can create many differnt copyright files to choose from.
-set exifTagsFilePath=%~dp0
-:: prompt for adding tags manually; set to false or comment it out to disable addExifTags
-set addExifTagsFile=true
-:: set this to true to also update the tags for the original image; after all, why would they be different?
-set alsoApplyTagsForOriginal=false
+:: in xmpTagsFile you store the Exif/XMP/IPTC tags to add; you can create many differnt copyright files to choose from.
+set copyrightFilePath=%~dp0
+:: prompt for adding tags manually; set to false or comment it out to disable insertCopyrightFile
+set copyrightFileUse=true
+:: set this to true to also update the copyright AND Exif tags to the input image
+set copyrightAlsoToOriginal=false
 :: set overwrite=true to overwite existing watermarked pictures
 set overwrite=true
 
@@ -150,10 +171,12 @@ set fontColor="255,255,255"
 :: various prompts
 :: let you choose fontAlpha manually; comment or set to false to disable
 set promptForAlpha=true
-:: set this to false or comment it out to use the first file in the alphabetically detected exifTagsFilenames, otherwise you will be prompted
-set promptForExifTagsFile=true
-:: set this to true to be prompted for additional tags to add manually
-set promptForAdditionalTags=true
+:: set this to false or comment it out to use the first file in the alphabetically detected copyrightFileNames, otherwise you will be prompted
+set copyrightFilePrompt=true
+:: Exif tags from input picture are always transfered. Set promptForXmpTags to true to be prompted to REPLACE those manually
+set promptForXmpTags=true
+:: xmpTagModifier = A for ADD tags or R for REPLACE tags; not used if promptForXmpTags=false
+set xmpTagModifier=A
 :: interactive choice for fontColor and fontAlpha; will override promptForAlpha; do not use when looping over hundreds of images...
 set promptForSampleTesting=false
 :: the default sample choice when prompted; will be updated with user's last choice
@@ -168,7 +191,7 @@ call :set_colors
 IF "%~1"=="" echo %r%ERROR: %~n0 takes arguments: jpeg(s) to process%END% 1>&2 & timeout /t 5 & exit /b 99
 where magick >NUL 2>&1 || (echo %r%ERROR: magick.exe not found%END% 1>&2 & timeout /t 5 & exit /b 99)
 where jpegtran >NUL 2>&1 || (echo %r%ERROR: jpegtran.exe not found%END% 1>&2 & timeout /t 5 & exit /b 99)
-IF /I "%addExifTagsFile%"=="true" where exiv2 >NUL 2>&1 || (echo %r%ERROR: exiv2.exe not found%END% 1>&2 & timeout /t 5 & exit /b 99)
+IF /I "%copyrightFileUse%"=="true" where exiv2 >NUL 2>&1 || (echo %r%ERROR: exiv2.exe not found%END% 1>&2 & timeout /t 5 & exit /b 99)
 
 
 :::::::::::::::::::::::::::::::::::::::::::::
@@ -178,23 +201,27 @@ IF /I "%addExifTagsFile%"=="true" where exiv2 >NUL 2>&1 || (echo %r%ERROR: exiv2
 IF /I "%promptForSampleTesting%"=="true" set promptForAlpha=false
 IF /I "%promptForAlpha%"=="true" set /P fontAlpha=alpha? [%fontAlpha%] 
 
-call :isFolder %* && for %%F in ("%~1\*.jpg") DO call :loop %%F
-call :isFolder %* || for %%F in (%*)          DO call :loop %%F
+for %%F in (%*) DO (
+  call :isFolder "%%~F" && for %%f in ("%%~F\*.jpg") DO call :loop %%f
+  call :isFolder "%%~F" ||                              call :loop "%%~F"
+)
+
 goto :end
 :::::::::::::::::::::::::::::::::::::::::::::
 :::::::::::::::::::::::::::::::::::::::::::::
 
 
+:::::::::::::::::::::::::::::::::::::::::::::
 :loop
 :: do not reprocess already processed files unles you want it
 IF /I NOT "%overwrite%"=="true" dir "%~dpn1%copyrightTag%%~x1" >NUL 2>&1 && goto :EOF
 :: do not reprocess previous outputs...
-dir "%~1" | findstr /I /C:"%copyrightTag%%~x1" >NUL 2>&1 && goto :EOF
+dir /b "%~1" | findstr /I /C:"%copyrightTag%%~x1" >NUL 2>&1 && goto :EOF
 
-:: outputFile must have a different name then the original file, unless overwriting is your goal
+:: outputFile must have a different name then the input image, unless overwriting is your goal
 set outputFile="%~dpn1%copyrightTag%%~x1"
-set chunk="%chunkBasename%.%RANDOM%.%chunkExt%"
-set watermarkRand=%watermarkBasename%.%RANDOM%
+set chunk="%~dpn1.%chunkBasename%.%RANDOM%.%chunkExt%"
+set watermarkRand=%~dpn1.%watermarkBasename%.%RANDOM%
 echo:
 echo %y%Processing%END% %~nx1 ... 1>&2
 
@@ -233,16 +260,34 @@ IF /I "%promptForSampleTesting%"=="true" (
 )
 call :pasteWatermark "%watermarkRand%.%watermarkExt%" "%~1" %outputFile%
 
-call :addExifTags %outputFile% %1
-call :promptForManualTags %outputFile%
-call :addManualTags %outputFile% %1
+call :insertCopyrightFile %outputFile% %1
+call :promptForXmpTags %outputFile% %1
+call :insertXmpTags %outputFile% %1
 
 :: this will open the file and pause the batch until you close it
 IF DEFINED DEBUG %outputFile%
 
 echo %y%Processing%w% %~nx1 ... %g%DONE%END% 1>&2
+
+
+echo TODO - delete temp files properly
+echo TODO - delete temp files properly
+echo TODO - delete temp files properly
+echo TODO - delete temp files properly
+echo TODO - delete temp files properly
+pause
+pause
+pause
+pause
+pause
 IF NOT DEFINED DEBUG del /f /q "%chunk%*" "%watermarkRand%*" 2>NUL
+IF NOT DEFINED DEBUG del /f /q "%chunkBasename%*" "%watermarkBasename%*" 2>NUL
+
+
+
+
 goto :EOF
+:::::::::::::::::::::::::::::::::::::::::::::
 
 
 :getJpegInfo
@@ -261,7 +306,7 @@ IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 :: LeftBottom  - 8
 
 set orientation=
-FOR /F "tokens=1-5 USEBACKQ" %%a IN (`magick identify -format "%%[fx:w] %%[fx:h] %%[jpeg:sampling-factor] %%Q %%[EXIF:orientation]" %1`) DO set "width=%%a" & set "height=%%b" & set "sampling=%%c" & set "Quality=%%d" & set "orientation=%%e"
+FOR /F "tokens=1-5 USEBACKQ" %%a IN (`magick identify -format "%%[fx:w] %%[fx:h] %%[jpeg:sampling-factor] %%Q %%[EXIF:orientation]" %1 2^>NUL`) DO set "width=%%a" & set "height=%%b" & set "sampling=%%c" & set "Quality=%%d" & set "orientation=%%e"
 
 :: covering all types of orientation is impossible, also why is there 8 and not just 4?
 :: you can only rotate the camera that much, does not make any sense to me
@@ -434,76 +479,93 @@ magick convert %stacks% -gravity center -append "%~4"
 goto :EOF
 
 
-:addExifTags output input
+:insertCopyrightFile output input
 IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
-IF NOT "%addExifTagsFile%"=="true" exit /b 0
+IF NOT "%copyrightFileUse%"=="true" exit /b 0
 
-set exifTagFileName=
-:: exifTagsFilenames are all the copyright.*.txt that you will be prompted to choose from, when tagging your pictures; first alphabetical one is the default.
-for /f "tokens=2 delims=." %%c in ('dir /b /o-n "%exifTagsFilePath%\copyright.*.txt"') DO set exifTagsFilenames=%exifTagsFilenames% %%c
+set copyrightFileName=
+:: copyrightFileNames are all the copyright.*.txt that you will be prompted to choose from, when tagging your pictures; first alphabetical one is the default.
+for /f "tokens=2 delims=." %%c in ('dir /b /o-n "%copyrightFilePath%\copyright.*.txt"') DO set copyrightFileNames=%copyrightFileNames% %%c
 
 :: exit if not copyright file is found
-IF NOT DEFINED exifTagFileName exit /b 1
+IF NOT DEFINED copyrightFileName exit /b 1
 
-IF "%promptForExifTagsFile%"=="true" (
+IF "%copyrightFilePrompt%"=="true" (
   echo:
-  echo               %exifTagsFilenames%
-  set /P exifTagFileName=exifTagFile? [%exifTagFileName%] 
+  echo               %copyrightFileNames%
+  set /P copyrightFileName=xmpTagFile? [%copyrightFileName%] 
 )
 
 :: now get the actual filename
-set exifTagsFileToUse="%exifTagsFilePath%\copyright.%exifTagFileName%.txt"
+set copyrightFileToUse="%copyrightFilePath%\copyright.%copyrightFileName%.txt"
 
-IF EXIST %exifTagsFileToUse% (
-  IF DEFINED DEBUG echo exiv2 -m %exifTagsFileToUse% %1
+IF EXIST %copyrightFileToUse% (
+  IF DEFINED DEBUG echo exiv2 -m %copyrightFileToUse% %1
   IF DEFINED DEBUG pause
-  exiv2 -m %exifTagsFileToUse% %1
+  exiv2 -m %copyrightFileToUse% %1
   IF DEFINED DEBUG exiv2 -pi %1
   
-  IF /I NOT "%alsoApplyTagsForOriginal%"=="true" goto :EOF
-  IF DEFINED DEBUG echo exiv2 -m %exifTagsFileToUse% %2
-  exiv2 -m %exifTagsFileToUse% %2
+  IF /I NOT "%copyrightAlsoToOriginal%"=="true" goto :EOF
+  IF DEFINED DEBUG echo exiv2 -m %copyrightFileToUse% %2
+  exiv2 -m %copyrightFileToUse% %2
 ) ELSE (
-  echo ERROR: file %exifTagsFileToUse% not found
+  echo ERROR: file %copyrightFileToUse% not found
 )
 goto :EOF
 
-:promptForManualTags output
+:promptForXmpTags output input
 IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
-IF NOT "%promptForAdditionalTags%"=="true" exit /b 0
+IF NOT "%promptForXmpTags%"=="true" exit /b 0
 IF     "%applyCurrentManualTagsToAllImages%"=="true" exit /b 0
 
-call :getHistory
+echo:
+:: load and show manually added tags from history; will happen only once
+IF NOT DEFINED tagsA IF NOT DEFINED tagsR call :getXmpTagsHistory
+
+:: Get tags from input image into tags variable:
+for /f "tokens=3*" %%a in ('exiv2 -px %1 ^| findstr subject') do set "tags=%%b"
+:: Also show the tags in input image as the last line:
+echo %y%  tags=%tags% %END%
+
+:: if no history, set REPLACE tagsR = current imput file tags
+IF NOT DEFINED tagsA IF NOT DEFINED tagsR set "tagsR=%tags%"
 
 echo:
-exiv2 -px %1 | findstr subject
-echo       REPLACE all tags, enter tags separated by comma:
-set /P tags=tags? [%tags%] 
+set /P xmpTagModifier=%HIGH%%r%R%END%EPLACE or %y%A%END%DD tags?     [%HIGH%%xmpTagModifier%%END%] 
+:: exiv2 has what I consider a serious bug with XmpBag commands: 'add' will REPLACE tags, 'set' will ADD tags to the list; looks inverted to me
+IF /I "%xmpTagModifier%"=="A" (set "xmpTagModifierCommand=set") ELSE set "xmpTagModifierCommand=add"
 
-:: 1.5.3
-IF NOT DEFINED arg2 goto :EOF
-set    applyCurrentManualTagsToAllImages=n
+call set /P tags%xmpTagModifier%=tags%HIGH%%xmpTagModifier%%END% separated by comma: [%%tags%xmpTagModifier%%%] 
+IF NOT DEFINED tags%xmpTagModifier% goto :EOF
+
+call :putXmpTagsHistory "tags%xmpTagModifier%=%%tags%xmpTagModifier%%%"
+
+:: below we assess that there was indeed more then one image to process:
+IF NOT DEFINED moreThenOneArg set "moreThenOneArg=true" && goto :EOF
+
 set /P applyCurrentManualTagsToAllImages=apply those tags to all other images? [N/y] 
-IF /I "%applyCurrentManualTagsToAllImages%"=="y" set applyCurrentManualTagsToAllImages=true
+IF /I "%applyCurrentManualTagsToAllImages%"=="y" set "applyCurrentManualTagsToAllImages=true"
 
-call :putHistory "%tags%"
 
 goto :EOF
 
 
-:addManualTags output original
+:insertXmpTags output input
 IF DEFINED DEBUG echo %m%%~0 %c%%* %END%
 
-:: exiv2 has a bug with XMP: 'add' will REPLACE tags, 'set' will ADD tags to the list
-IF DEFINED tags (
-  IF DEFINED DEBUG echo exiv2 -M"add Xmp.dc.subject XmpBag %tags%" %1
-  exiv2 -M"add Xmp.dc.subject XmpBag %tags%" %1
-  IF DEFINED DEBUG exiv2 -px %1 | findstr subject
+:: exiv2 has what I consider a serious bug with XmpBag commands: 'add' will REPLACE tags, 'set' will ADD tags to the list; looks inverted to me
+set tagsToInsert=
+IF     DEFINED tags%xmpTagModifier% call set "tagsToInsert=%%tags%xmpTagModifier%%%"
+IF NOT DEFINED tagsToInsert goto :EOF
 
-  IF /I NOT "%alsoApplyTagsForOriginal%"=="true" goto :EOF
-  IF DEFINED DEBUG echo exiv2 -M"add Xmp.dc.subject XmpBag %tags%" %2
-  exiv2 -M"add Xmp.dc.subject XmpBag %tags%" %2
-)
+IF DEFINED DEBUG echo exiv2 -M"%xmpTagModifierCommand% Xmp.dc.subject XmpBag %tagsToInsert%" modify %1
+exiv2 -M"%xmpTagModifierCommand% Xmp.dc.subject XmpBag %tagsToInsert%" modify %1
+IF DEFINED DEBUG exiv2 -px %1 | findstr subject
+
+IF /I NOT "%copyrightAlsoToOriginal%"=="true" goto :EOF
+IF DEFINED DEBUG echo exiv2 -M"%xmpTagModifierCommand% Xmp.dc.subject XmpBag %tagsToInsert%" modify %2
+exiv2 -M"%xmpTagModifierCommand% Xmp.dc.subject XmpBag %tagsToInsert%" modify %2
+
 goto :EOF
 
 
@@ -512,25 +574,26 @@ IF DEFINED DEBUG echo %m%DEBUG: %* %END% 1>&2
 goto :EOF
 
 
-:getHistory [tag]
+:getXmpTagsHistory
 :: history lines are in the form: tags=USA, AZ, Las Vegas, Road
 IF NOT EXIST %history% exit /b 1
 
-IF NOT "%~1"=="" for /f "tokens=*" %%t in ('findstr /I /C:"%~1" %history%') do set "%%t"
+:: TODO: show only the last 10 lines
 :: the beauty of MSDOS... escaped file names look like strings for the for loop, must remove the quotes
-IF     "%~1"=="" for /f "tokens=*" %%t in (%history:~1,-1%) do echo DEBUG: set "%%t"
-IF     "%~1"=="" for /f "tokens=*" %%t in (%history:~1,-1%) do set "%%t"
+for /f "tokens=*" %%t in (%history:~1,-1%) do echo %HIGH%%k% %%t %END%
+:: only the last line of each will be loaded into the tagsA or tagsR variables
+for /f "tokens=*" %%t in (%history:~1,-1%) do set "%%t"
 
 goto :EOF
 
 
-:putHistory "tags"
+:putXmpTagsHistory "tagsX=tags, .."
 :: tags should be separated by comma+space and protected by quotes
 REM for %%t in (%*) DO (call echo %%t=%%%%t%%)>>%history%
-IF DEFINED DEBUG echo DEBUG: tags=%~1 ^>^>%history%
+IF DEFINED DEBUG echo DEBUG: %~1^>^>%history%
 IF DEFINED DEBUG pause
 
-echo tags=%~1 >>%history%
+findstr /I /B /E /C:"%~1" %history% >NUL || echo %~1>>%history%
 goto :EOF
 
 
@@ -573,7 +636,5 @@ goto :EOF
 
 
 :end
-IF NOT DEFINED DEBUG del /f /q "%chunkBasename%*" "%watermarkBasename%*" 2>NUL
-IF DEFINED DEBUG pause
-
+IF DEFINED DEBUG pause ELSE timeout /t 5
 

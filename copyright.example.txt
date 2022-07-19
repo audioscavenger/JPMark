@@ -21,8 +21,11 @@ set Xmp.dc.rights                                lang=en-US © 2021, Artist Name
 
 set Xmp.dc.publisher                                        https://www.yourwebsite.com
 
-# THESE ARE YOUR TAGS; All tags must be separated by comma + space
-set Xmp.dc.subject                               XmpBag     USA, AZ, Phoenix, Place, People, Person
+# THESE ARE YOUR TAGS; All tage must be separated by comma + space
+# add == replace all the tag bags by the one below;           this effectively REPLACES ALL tags
+# set == add the tag bags below to the existing one, if any;  this effectively ADD UP more tags
+add Xmp.dc.subject                               XmpBag     USA, AZ, Phoenix
+set Xmp.dc.subject                               XmpBag     People, Person, John Doe
 
 # Sample Exiv2 command file https://exiv2.org/sample.html
 # -------------------------

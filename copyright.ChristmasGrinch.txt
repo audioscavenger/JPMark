@@ -13,6 +13,7 @@ set Iptc.Application2.CountryName                String     US
 # Iptc.Application2.ObjectName is pretty much the title of the picture
 set Iptc.Application2.ObjectName                 String     Christmas Grinch 2021 @FrenchAM
 set Xmp.dc.title                                 lang=en-US Christmas Grinch 2021 @FrenchAM
+set Xmp.dc.description                   LangAlt lang=en-US Canon de noel
 
 set Exif.Image.Copyright                                    Copyright 2021, Eric Derewonko. Some rights reserved.
 set Iptc.Application2.Copyright                  String     © 2021, Eric Derewonko. Some rights reserved.
@@ -21,8 +22,9 @@ set Xmp.dc.rights                                lang=en-US © 2021, Eric Derewo
 set Xmp.dc.publisher                                        https://www.derewonko.com
 
 # THESE ARE YOUR TAGS; All tage must be separated by comma + space
-set Xmp.dc.subject                       LangAlt lang=en-US Christmas, FrenchAM, Event, Christmas Grinch @FrenchAM
-set Xmp.dc.description                   LangAlt lang=en-US Canon de noel
+# add == replace all the tag bags by the one below;           this effectively REPLACES ALL tags
+# set == add the tag bags below to the existing one, if any;  this effectively ADD UP more tags
+add Xmp.dc.subject                       LangAlt lang=en-US Christmas, FrenchAM, Event, Christmas Grinch @FrenchAM
 
 # Sample Exiv2 command file https://exiv2.org/sample.html
 # -------------------------
@@ -33,6 +35,7 @@ set Xmp.dc.description                   LangAlt lang=en-US Canon de noel
 # run from the command line directly, without a command file: 
 #
 # $ exiv2 -M"add Iptc.Application2.Credit String mee too!" file ...
+# $ exiv2 -M"set Xmp.dc.subject LangAlt lang=en-US USA, AZ, Phoenix" file ...
 #
 # Note the quotes. Multiple -m and -M options are allowed and can be combined.
 # 
