@@ -96,6 +96,7 @@ set tags=
 set tagsA=
 set tagsR=
 set moreThenOneArg=
+set CR=1
 
 :arguments
 IF NOT "%~2"=="" set moreThenOneArg=true
@@ -177,6 +178,7 @@ set copyrightFilePrompt=true
 set promptForXmpTags=true
 :: xmpTagModifier = A for ADD tags or R for REPLACE tags; not used if promptForXmpTags=false
 set xmpTagModifier=A
+set xmpTagModifierCommand=set
 :: interactive choice for fontColor and fontAlpha; will override promptForAlpha; do not use when looping over hundreds of images...
 set promptForSampleTesting=false
 :: the default sample choice when prompted; will be updated with user's last choice
@@ -533,7 +535,10 @@ IF NOT DEFINED tagsA IF NOT DEFINED tagsR set "tagsR=%tags%"
 echo:
 set /P xmpTagModifier=%HIGH%%r%R%END%EPLACE or %y%A%END%DD tags?     [%HIGH%%xmpTagModifier%%END%] 
 :: exiv2 has what I consider a serious bug with XmpBag commands: 'add' will REPLACE tags, 'set' will ADD tags to the list; looks inverted to me
-IF /I "%xmpTagModifier%"=="A" (set "xmpTagModifierCommand=set") ELSE set "xmpTagModifierCommand=add"
+IF /I "%xmpTagModifier%"=="A" set "xmpTagModifierCommand=set" && set CR=0
+IF /I "%xmpTagModifier%"=="R" set "xmpTagModifierCommand=add" && set CR=0
+:: if user entered neither A or R:
+IF "%xmpTagModifierCommand%"=="set" (set "xmpTagModifier=A") ELSE set "xmpTagModifier=R"
 
 call set /P tags%xmpTagModifier%=tags%HIGH%%xmpTagModifier%%END% separated by comma: [%%tags%xmpTagModifier%%%] 
 IF NOT DEFINED tags%xmpTagModifier% goto :EOF
