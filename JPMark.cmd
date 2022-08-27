@@ -42,6 +42,8 @@
 :: * [ ] make money
 ::
 :: * revisions:
+:: - 1.6.1    proper deletion of chunks and temp files
+:: - 1.6.0    cleanup and testing
 :: - 1.5.18   temporary files are now named afer the input file inside the same folder
 :: - 1.5.17   renames exifTag to xmpTag
 :: - 1.5.16   properly set tagsA tagsR as the command to insert XMP tags is different
@@ -84,7 +86,7 @@
 :init
 set author=AudioscavengeR
 set authorEmail=dev@derewonko.com
-set version=1.6.0
+set version=1.6.1
 
 :: uncomment below to enable DEBUG lines and pauses; also temporary chuncks ans stacks won't be deleted
 REM set DEBUG=true
@@ -166,8 +168,9 @@ set textScale=80
 set Scale=100
 :: fontAlpha is transparency of the watermark font
 set fontAlpha=0.3
-:: RGB fontColor; user quotes because it's MSDOS
-set fontColor="255,255,255"
+:: RGB fontColor between quotes
+REM set fontColor="255,255,255"
+set fontColor="25,25,25"
 
 :: various prompts
 :: let you choose fontAlpha manually; comment or set to false to disable
@@ -180,7 +183,7 @@ set promptForXmpTags=true
 set xmpTagModifier=A
 set xmpTagModifierCommand=set
 :: interactive choice for fontColor and fontAlpha; will override promptForAlpha; do not use when looping over hundreds of images...
-set promptForSampleTesting=false
+set promptForSampleTesting=true
 :: the default sample choice when prompted; will be updated with user's last choice
 set sampleChoice=1
 
@@ -271,22 +274,8 @@ IF DEFINED DEBUG %outputFile%
 
 echo %y%Processing%w% %~nx1 ... %g%DONE%END% 1>&2
 
-
-echo TODO - delete temp files properly
-echo TODO - delete temp files properly
-echo TODO - delete temp files properly
-echo TODO - delete temp files properly
-echo TODO - delete temp files properly
-pause
-pause
-pause
-pause
-pause
-IF NOT DEFINED DEBUG del /f /q "%chunk%*" "%watermarkRand%*" 2>NUL
-IF NOT DEFINED DEBUG del /f /q "%chunkBasename%*" "%watermarkBasename%*" 2>NUL
-
-
-
+IF NOT DEFINED DEBUG echo del /f /q %chunk% "%watermarkRand%*" 2>NUL
+IF NOT DEFINED DEBUG del /f /q %chunk% "%watermarkRand%*" 2>NUL
 
 goto :EOF
 :::::::::::::::::::::::::::::::::::::::::::::
@@ -603,7 +592,7 @@ goto :EOF
 
 
 :set_colors
-set colorCompatibleVersions=-8-8.1-10-2016-2019-
+set colorCompatibleVersions=-8-8.1-10-2016-2019-2022-
 IF DEFINED WindowsVersion IF "%colorCompatibleVersions:-!WindowsVersion!-=_%"=="%colorCompatibleVersions%" exit /b 1
 
 set END=[0m
