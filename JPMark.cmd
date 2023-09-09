@@ -42,7 +42,7 @@
 :: * [ ] make money
 ::
 :: * revisions:
-:: - 1.6.1    proper deletion of chunks and temp files
+:: - 1.6.1    proper deletion of chunks and temp files before dealing with tags
 :: - 1.6.0    cleanup and testing
 :: - 1.5.18   temporary files are now named afer the input file inside the same folder
 :: - 1.5.17   renames exifTag to xmpTag
@@ -264,6 +264,8 @@ IF /I "%promptForSampleTesting%"=="true" (
   call :genWatermark %chunk% "%watermarkRand%.%watermarkExt%" %font% %Point_Size% %%fontColor.%sampleChoice%%% %%fontAlpha.%sampleChoice%%%
 )
 call :pasteWatermark "%watermarkRand%.%watermarkExt%" "%~1" %outputFile%
+IF NOT DEFINED DEBUG echo del /f /q %chunk% "%watermarkRand%*" 2>NUL
+IF NOT DEFINED DEBUG del /f /q %chunk% "%watermarkRand%*" 2>NUL
 
 call :insertCopyrightFile %outputFile% %1
 call :promptForXmpTags %outputFile% %1
@@ -273,9 +275,6 @@ call :insertXmpTags %outputFile% %1
 IF DEFINED DEBUG %outputFile%
 
 echo %y%Processing%w% %~nx1 ... %g%DONE%END% 1>&2
-
-IF NOT DEFINED DEBUG echo del /f /q %chunk% "%watermarkRand%*" 2>NUL
-IF NOT DEFINED DEBUG del /f /q %chunk% "%watermarkRand%*" 2>NUL
 
 goto :EOF
 :::::::::::::::::::::::::::::::::::::::::::::
