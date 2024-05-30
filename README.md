@@ -1,7 +1,6 @@
 # JPMark
-
 JPMark is a LOSSLESS JPEG watermarking tool.
-![JPMark](https://gitea.derewonko.com/audioscavenger/JPMark/raw/branch/master/JPMark.png)
+![JPMark](/assets/JPMark.png)
 
 ## Presentation
 ### How does it work?
@@ -21,7 +20,7 @@ Bonus: Also adds Exif/XMP/IPTC Copyright tags with `exiv2`.
 Recompression of the watermark chunk is indeed lossy, but it's not humanely visible.
 
 ### Then it's not 100% lossless, isn't that clickbait?
-I do whatever I want :)
+Haha, everyone knows that JPEG is lossy.
 
 ## How to use this batch?
 * test it by dropping a jpeg over it a see the magic
@@ -29,9 +28,9 @@ I do whatever I want :)
 * the best way: place a shortcut to it in your sendTo folder!
 
 ## Requisites:
-- jpegtran https://jpegclub.org/jpegtran/                            Jpeg lossless operations
-- iMagick  https://www.imagemagick.org/script/download.php#windows   Portable Win64 static at 16 bits-per-pixel component.
-- exiftool https://exiftool.org/                                     ExifTool by Phil Harvey
+- [jpegtran](https://jpegclub.org/jpegtran/): Jpeg lossless operations
+- [iMagick](https://www.imagemagick.org/script/download.php#windows): Portable Win64 static at 16 bits-per-pixel component.
+- [exiftool](https://exiftool.org/): ExifTool by Phil Harvey
 
 ## How to get it to work?
 - clone this project in some random place
@@ -72,3 +71,10 @@ I do whatever I want :)
 - 1.3.0    batch processing
 - 1.2.0    exiv2/IPTC/XMP tags and copyright based off a text file
 - 1.1.0    working release
+
+## :beer: Buy me a beer
+Like my work? This tool helped you? Want to sponsor more awesomeness like this?
+
+<p align="center">
+ <a href="https://www.paypal.com/donate/?hosted_button_id=CD7P7PK3WP8WU"><img src="/assets/paypal-Donate-QR-Code.png" /></a>
+</p>
