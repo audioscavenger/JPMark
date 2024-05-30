@@ -1,3 +1,7 @@
+**/backup
+gitsync.*
+commit.*.txt
+README.cmd
 chunk*.*
 watermark*.*
 sample-*.*
